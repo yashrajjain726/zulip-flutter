@@ -504,6 +504,58 @@ class EmbedVideoNode extends BlockContentNode {
   }
 }
 
+// See:
+//  https://ogp.me/
+//  https://oembed.com/
+//  https://zulip.com/help/image-video-and-website-previews#configure-whether-website-previews-are-shown
+class WebsitePreviewNode extends BlockContentNode {
+  const WebsitePreviewNode({
+    super.debugHtmlNode,
+    required this.hrefUrl,
+    required this.imageSrcUrl,
+    required this.title,
+    required this.description,
+  });
+
+  /// The URL from which this preview data was retrieved.
+  final String hrefUrl;
+
+  /// The image URL representing the webpage, content value
+  /// of `og:image` HTML meta property.
+  final String imageSrcUrl;
+
+  /// Represents the webpage title, derived from either
+  /// the content of the `og:title` HTML meta property or
+  /// the <title> HTML element.
+  final String? title;
+
+  /// Description about the webpage, content value of
+  /// `og:description` HTML meta property.
+  final String? description;
+
+  @override
+  bool operator ==(Object other) {
+    return other is WebsitePreviewNode
+      && other.hrefUrl == hrefUrl
+      && other.imageSrcUrl == imageSrcUrl
+      && other.title == title
+      && other.description == description;
+  }
+
+  @override
+  int get hashCode =>
+    Object.hash('WebsitePreviewNode', hrefUrl, imageSrcUrl, title, description);
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties.add(StringProperty('hrefUrl', hrefUrl));
+    properties.add(StringProperty('imageSrcUrl', imageSrcUrl));
+    properties.add(StringProperty('title', title));
+    properties.add(StringProperty('description', description));
+  }
+}
+
 class TableNode extends BlockContentNode {
   const TableNode({super.debugHtmlNode, required this.rows});
 
@@ -1055,13 +1107,6 @@ class _ZulipContentParser {
     return inlineParser.parseBlockInline(nodes);
   }
 
-  BlockContentNode parseMathBlock(dom.Element element) {
-    final debugHtmlNode = kDebugMode ? element : null;
-    final texSource = _parseMath(element, block: true);
-    if (texSource == null) return UnimplementedBlockContentNode(htmlNode: element);
-    return MathBlockNode(texSource: texSource, debugHtmlNode: debugHtmlNode);
-  }
-
   BlockContentNode parseListNode(dom.Element element) {
     ListStyle? listStyle;
     switch (element.localName) {
@@ -1346,6 +1391,113 @@ class _ZulipContentParser {
     return EmbedVideoNode(hrefUrl: href, previewImageSrcUrl: imgSrc, debugHtmlNode: debugHtmlNode);
   }
 
+  static final _websitePreviewImageSrcRegexp = RegExp(r'background-image: url\(("?)(.+?)\1\)');
+
+  BlockContentNode parseWebsitePreviewNode(dom.Element divElement) {
+    assert(divElement.localName == 'div'
+      && divElement.className == 'message_embed');
+
+    final debugHtmlNode = kDebugMode ? divElement : null;
+    final result = () {
+      if (divElement.nodes case [
+        dom.Element(
+          localName: 'a',
+          className: 'message_embed_image',
+          attributes: {
+            'href': final String imageHref,
+            'style': final String imageStyleAttr,
+          },
+          nodes: []),
+        dom.Element(
+          localName: 'div',
+          className: 'data-container',
+          nodes: [...]) && final dataContainer,
+      ]) {
+        final match = _websitePreviewImageSrcRegexp.firstMatch(imageStyleAttr);
+        if (match == null) return null;
+        final imageSrcUrl = match.group(2);
+        if (imageSrcUrl == null) return null;
+
+        String? parseTitle(dom.Element element) {
+          assert(element.localName == 'div' &&
+            element.className == 'message_embed_title');
+          if (element.nodes case [
+            dom.Element(localName: 'a', className: '') && final child,
+          ]) {
+            final titleHref = child.attributes['href'];
+            // Make sure both image hyperlink and title hyperlink are same.
+            if (imageHref != titleHref) return null;
+
+            if (child.nodes case [dom.Text(text: final title)]) {
+              return title;
+            }
+          }
+          return null;
+        }
+
+        String? parseDescription(dom.Element element) {
+          assert(element.localName == 'div' &&
+            element.className == 'message_embed_description');
+          if (element.nodes case [dom.Text(text: final description)]) {
+            return description;
+          }
+          return null;
+        }
+
+        String? title, description;
+        switch (dataContainer.nodes) {
+          case [
+            dom.Element(
+              localName: 'div',
+              className: 'message_embed_title') && final first,
+            dom.Element(
+              localName: 'div',
+              className: 'message_embed_description') && final second,
+          ]:
+            title = parseTitle(first);
+            if (title == null) return null;
+            description = parseDescription(second);
+            if (description == null) return null;
+
+          case [dom.Element(localName: 'div') && final single]:
+            switch (single.className) {
+              case 'message_embed_title':
+                title = parseTitle(single);
+                if (title == null) return null;
+
+              case 'message_embed_description':
+                description = parseDescription(single);
+                if (description == null) return null;
+
+              default:
+                return null;
+            }
+
+          case []:
+            // Server generates an empty `<div class="data-container"></div>`
+            // if website HTML has neither title (derived from
+            // `og:title` or `<title>…</title>`) nor description (derived from
+            // `og:description`).
+            break;
+
+          default:
+            return null;
+        }
+
+        return WebsitePreviewNode(
+          hrefUrl: imageHref,
+          imageSrcUrl: imageSrcUrl,
+          title: title,
+          description: description,
+          debugHtmlNode: debugHtmlNode);
+      } else {
+        return null;
+      }
+    }();
+
+    return result ?? UnimplementedBlockContentNode(htmlNode: divElement);
+  }
+
   BlockContentNode parseTableContent(dom.Element tableElement) {
     assert(tableElement.localName == 'table'
         && tableElement.className.isEmpty);
@@ -1453,6 +1605,64 @@ class _ZulipContentParser {
     return tableNode ?? UnimplementedBlockContentNode(htmlNode: tableElement);
   }
 
+  void parseMathBlocks(dom.NodeList nodes, List<BlockContentNode> result) {
+    assert(nodes.isNotEmpty);
+    assert((() {
+      final first = nodes.first;
+      return first is dom.Element
+        && first.localName == 'span'
+        && first.className == 'katex-display';
+    })());
+
+    final firstChild = nodes.first as dom.Element;
+    final texSource = _parseMath(firstChild, block: true);
+    if (texSource != null) {
+      result.add(MathBlockNode(
+        texSource: texSource,
+        debugHtmlNode: kDebugMode ? firstChild : null));
+    } else {
+      result.add(UnimplementedBlockContentNode(htmlNode: firstChild));
+    }
+
+    // Skip further checks if there was only a single child.
+    if (nodes.length == 1) return;
+
+    // The case with the `<br>\n` can happen when at the end of a quote;
+    // it seems like a glitch in the server's Markdown processing,
+    // so hopefully there just aren't any further such glitches.
+    bool hasTrailingBreakNewline = false;
+    if (nodes case [..., dom.Element(localName: 'br'), dom.Text(text: '\n')]) {
+      hasTrailingBreakNewline = true;
+    }
+
+    final length = hasTrailingBreakNewline
+      ? nodes.length - 2
+      : nodes.length;
+    for (int i = 1; i < length; i++) {
+      final child = nodes[i];
+      final debugHtmlNode = kDebugMode ? child : null;
+
+      // If there are multiple <span class="katex-display"> nodes in a <p>
+      // each node is interleaved by '\n\n'. Whitespaces are ignored in HTML
+      // on web but each node has `display: block`, which renders each node
+      // on a new line. Since the emitted MathBlockNode are BlockContentNode,
+      // we skip these newlines here to replicate the same behavior as on web.
+      if (child case dom.Text(text: '\n\n')) continue;
+
+      if (child case dom.Element(localName: 'span', className: 'katex-display')) {
+        final texSource = _parseMath(child, block: true);
+        if (texSource != null) {
+          result.add(MathBlockNode(
+            texSource: texSource,
+            debugHtmlNode: debugHtmlNode));
+          continue;
+        }
+      }
+
+      result.add(UnimplementedBlockContentNode(htmlNode: child));
+    }
+  }
+
   BlockContentNode parseBlockContent(dom.Node node) {
     final debugHtmlNode = kDebugMode ? node : null;
     if (node is! dom.Element) {
@@ -1471,21 +1681,6 @@ class _ZulipContentParser {
     }
 
     if (localName == 'p' && className.isEmpty) {
-      // Oddly, the way a math block gets encoded in Zulip HTML is inside a <p>.
-      if (element.nodes case [dom.Element(localName: 'span') && var child, ...]) {
-        if (child.className == 'katex-display') {
-          if (element.nodes case [_]
-                              || [_, dom.Element(localName: 'br'),
-                                     dom.Text(text: "\n")]) {
-            // This might be too specific; we'll find out when we do #190.
-            // The case with the `<br>\n` can happen when at the end of a quote;
-            // it seems like a glitch in the server's Markdown processing,
-            // so hopefully there just aren't any further such glitches.
-            return parseMathBlock(child);
-          }
-        }
-      }
-
       final parsed = parseBlockInline(element.nodes);
       return ParagraphNode(debugHtmlNode: debugHtmlNode,
         links: parsed.links,
@@ -1547,6 +1742,10 @@ class _ZulipContentParser {
       }
     }
 
+    if (localName == 'div' && className == 'message_embed') {
+      return parseWebsitePreviewNode(element);
+    }
+
     // TODO more types of node
     return UnimplementedBlockContentNode(htmlNode: node);
   }
@@ -1599,6 +1798,17 @@ class _ZulipContentParser {
     for (final node in nodes) {
       if (node is dom.Text && (node.text == '\n')) continue;
 
+      // Oddly, the way math blocks get encoded in Zulip HTML is inside a <p>.
+      // And there can be multiple math blocks inside the paragraph node, so
+      // handle it explicitly here.
+      if (node case dom.Element(localName: 'p', className: '', nodes: [
+            dom.Element(localName: 'span', className: 'katex-display'), ...])) {
+        if (currentParagraph.isNotEmpty) consumeParagraph();
+        if (imageNodes.isNotEmpty) consumeImageNodes();
+        parseMathBlocks(node.nodes, result);
+        continue;
+      }
+
       if (_isPossibleInlineNode(node)) {
         if (imageNodes.isNotEmpty) {
           consumeImageNodes();
@@ -1639,6 +1849,16 @@ class _ZulipContentParser {
       // We get a bunch of newline Text nodes between paragraphs.
       // A browser seems to ignore these; let's do the same.
       if (node is dom.Text && _redundantLineBreaksRegexp.hasMatch(node.text)) {
+        continue;
+      }
+
+      // Oddly, the way math blocks get encoded in Zulip HTML is inside a <p>.
+      // And there can be multiple math blocks inside the paragraph node, so
+      // handle it explicitly here.
+      if (node case dom.Element(localName: 'p', className: '', nodes: [
+            dom.Element(localName: 'span', className: 'katex-display'), ...])) {
+        if (imageNodes.isNotEmpty) consumeImageNodes();
+        parseMathBlocks(node.nodes, result);
         continue;
       }
 

@@ -30,7 +30,7 @@ class ProfilePage extends StatelessWidget {
 
   final int userId;
 
-  static Route<void> buildRoute({int? accountId, BuildContext? context,
+  static AccountRoute<void> buildRoute({int? accountId, BuildContext? context,
       required int userId}) {
     return MaterialAccountWidgetRoute(accountId: accountId, context: context,
       page: ProfilePage(userId: userId));
@@ -40,7 +40,7 @@ class ProfilePage extends StatelessWidget {
   ///
   /// Returns null if self-user isn't able to see [user]'s real email address.
   String? _getDisplayEmailFor(User user, {required PerAccountStore store}) {
-    if (store.account.zulipFeatureLevel >= 163) { // TODO(server-7)
+    if (store.zulipFeatureLevel >= 163) { // TODO(server-7)
       // A non-null value means self-user has access to [user]'s real email,
       // while a null value means it doesn't have access to the email.
       // Search for "delivery_email" in https://zulip.com/api/register-queue.
@@ -67,7 +67,7 @@ class ProfilePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final zulipLocalizations = ZulipLocalizations.of(context);
     final store = PerAccountStoreWidget.of(context);
-    final user = store.users[userId];
+    final user = store.getUser(userId);
     if (user == null) {
       return const _ProfileErrorPage();
     }
@@ -200,7 +200,7 @@ class _ProfileDataTable extends StatelessWidget {
         // TODO(server): The value's format is undocumented, but empirically
         //   it's a date in ISO format, like 2000-01-01.
         // That's readable as is, but:
-        // TODO format this date using user's locale.
+        // TODO(i18n) format this date using user's locale.
         return _TextWidget(text: value);
 
       case CustomProfileFieldType.shortText:
@@ -291,9 +291,6 @@ class _UserWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = PerAccountStoreWidget.of(context);
-    final zulipLocalizations = ZulipLocalizations.of(context);
-    final user = store.users[userId];
-    final fullName = user?.fullName ?? zulipLocalizations.unknownUserName;
     return InkWell(
       onTap: () => Navigator.push(context,
         ProfilePage.buildRoute(context: context,
@@ -301,9 +298,12 @@ class _UserWidget extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(8),
         child: Row(children: [
+          // TODO(#196) render active status
           Avatar(userId: userId, size: 32, borderRadius: 32 / 8),
           const SizedBox(width: 8),
-          Expanded(child: Text(fullName, style: _TextStyles.customProfileFieldText)), // TODO(#196) render active status
+          Expanded(
+            child: Text(store.userDisplayName(userId),
+              style: _TextStyles.customProfileFieldText)),
         ])));
   }
 }

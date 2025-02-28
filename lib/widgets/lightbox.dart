@@ -178,7 +178,7 @@ class _LightboxPageLayoutState extends State<_LightboxPageLayout> {
             child: RichText(
               text: TextSpan(children: [
                 TextSpan(
-                  text: '${widget.message.senderFullName}\n',
+                  text: '${widget.message.senderFullName}\n', // TODO(#716): use `store.senderDisplayName`
 
                   // Restate default
                   style: themeData.textTheme.titleLarge!.copyWith(color: appBarForegroundColor)),
@@ -340,7 +340,7 @@ class VideoDurationLabel extends StatelessWidget {
     final hours = value.inHours.toString().padLeft(2, '0');
     final minutes = value.inMinutes.remainder(60).toString().padLeft(2, '0');
     final seconds = value.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '${hours == '00' ? '' : '$hours:'}$minutes:$seconds';
+    return '${hours == '00' ? '' : '$hours:'}$minutes:$seconds'; // TODO(i18n)
   }
 
   @override

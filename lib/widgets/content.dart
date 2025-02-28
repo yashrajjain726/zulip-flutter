@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:intl/intl.dart';
@@ -18,6 +19,7 @@ import '../model/internal_link.dart';
 import 'code_block.dart';
 import 'dialog.dart';
 import 'icons.dart';
+import 'inset_shadow.dart';
 import 'lightbox.dart';
 import 'message_list.dart';
 import 'poll.dart';
@@ -42,6 +44,7 @@ class ContentTheme extends ThemeExtension<ContentTheme> {
       colorDirectMentionBackground: const HSLColor.fromAHSL(0.2, 240, 0.7, 0.7).toColor(),
       colorGlobalTimeBackground: const HSLColor.fromAHSL(1, 0, 0, 0.93).toColor(),
       colorGlobalTimeBorder: const HSLColor.fromAHSL(1, 0, 0, 0.8).toColor(),
+      colorLink: const HSLColor.fromAHSL(1, 200, 1, 0.4).toColor(),
       colorMathBlockBorder: const HSLColor.fromAHSL(0.15, 240, 0.8, 0.5).toColor(),
       colorMessageMediaContainerBackground: const Color.fromRGBO(0, 0, 0, 0.03),
       colorPollNames: const HSLColor.fromAHSL(1, 0, 0, .45).toColor(),
@@ -75,6 +78,7 @@ class ContentTheme extends ThemeExtension<ContentTheme> {
       colorDirectMentionBackground: const HSLColor.fromAHSL(0.25, 240, 0.52, 0.6).toColor(),
       colorGlobalTimeBackground: const HSLColor.fromAHSL(0.2, 0, 0, 0).toColor(),
       colorGlobalTimeBorder: const HSLColor.fromAHSL(0.4, 0, 0, 0).toColor(),
+      colorLink: const HSLColor.fromAHSL(1, 200, 1, 0.4).toColor(), // the same as light in Web
       colorMathBlockBorder: const HSLColor.fromAHSL(1, 240, 0.4, 0.4).toColor(),
       colorMessageMediaContainerBackground: const HSLColor.fromAHSL(0.03, 0, 0, 1).toColor(),
       colorPollNames: const HSLColor.fromAHSL(1, 236, .15, .7).toColor(),
@@ -107,6 +111,7 @@ class ContentTheme extends ThemeExtension<ContentTheme> {
     required this.colorDirectMentionBackground,
     required this.colorGlobalTimeBackground,
     required this.colorGlobalTimeBorder,
+    required this.colorLink,
     required this.colorMathBlockBorder,
     required this.colorMessageMediaContainerBackground,
     required this.colorPollNames,
@@ -139,6 +144,7 @@ class ContentTheme extends ThemeExtension<ContentTheme> {
   final Color colorDirectMentionBackground;
   final Color colorGlobalTimeBackground;
   final Color colorGlobalTimeBorder;
+  final Color colorLink;
   final Color colorMathBlockBorder; // TODO(#46) this won't be needed
   final Color colorMessageMediaContainerBackground;
   final Color colorPollNames;
@@ -199,6 +205,7 @@ class ContentTheme extends ThemeExtension<ContentTheme> {
     Color? colorDirectMentionBackground,
     Color? colorGlobalTimeBackground,
     Color? colorGlobalTimeBorder,
+    Color? colorLink,
     Color? colorMathBlockBorder,
     Color? colorMessageMediaContainerBackground,
     Color? colorPollNames,
@@ -221,6 +228,7 @@ class ContentTheme extends ThemeExtension<ContentTheme> {
       colorDirectMentionBackground: colorDirectMentionBackground ?? this.colorDirectMentionBackground,
       colorGlobalTimeBackground: colorGlobalTimeBackground ?? this.colorGlobalTimeBackground,
       colorGlobalTimeBorder: colorGlobalTimeBorder ?? this.colorGlobalTimeBorder,
+      colorLink: colorLink ?? this.colorLink,
       colorMathBlockBorder: colorMathBlockBorder ?? this.colorMathBlockBorder,
       colorMessageMediaContainerBackground: colorMessageMediaContainerBackground ?? this.colorMessageMediaContainerBackground,
       colorPollNames: colorPollNames ?? this.colorPollNames,
@@ -250,6 +258,7 @@ class ContentTheme extends ThemeExtension<ContentTheme> {
       colorDirectMentionBackground: Color.lerp(colorDirectMentionBackground, other.colorDirectMentionBackground, t)!,
       colorGlobalTimeBackground: Color.lerp(colorGlobalTimeBackground, other.colorGlobalTimeBackground, t)!,
       colorGlobalTimeBorder: Color.lerp(colorGlobalTimeBorder, other.colorGlobalTimeBorder, t)!,
+      colorLink: Color.lerp(colorLink, other.colorLink, t)!,
       colorMathBlockBorder: Color.lerp(colorMathBlockBorder, other.colorMathBlockBorder, t)!,
       colorMessageMediaContainerBackground: Color.lerp(colorMessageMediaContainerBackground, other.colorMessageMediaContainerBackground, t)!,
       colorPollNames: Color.lerp(colorPollNames, other.colorPollNames, t)!,
@@ -364,6 +373,7 @@ class BlockContentList extends StatelessWidget {
             );
             return const SizedBox.shrink();
           }(),
+          WebsitePreviewNode() => WebsitePreview(node: node),
           UnimplementedBlockContentNode() =>
             Text.rich(_errorUnimplemented(node, context: context)),
         };
@@ -839,6 +849,103 @@ class MathBlock extends StatelessWidget {
   }
 }
 
+class WebsitePreview extends StatelessWidget {
+  const WebsitePreview({super.key, required this.node});
+
+  final WebsitePreviewNode node;
+
+  @override
+  Widget build(BuildContext context) {
+    final store = PerAccountStoreWidget.of(context);
+    final resolvedImageSrcUrl = store.tryResolveUrl(node.imageSrcUrl);
+    final isSmallWidth = MediaQuery.sizeOf(context).width <= 576;
+
+    // On Web on larger width viewports, the title and description container's
+    // width is constrained using `max-width: calc(100% - 115px)`, we do not
+    // follow the same here for potential benefits listed here:
+    //   https://github.com/zulip/zulip-flutter/pull/1049#discussion_r1915740997
+    final titleAndDescription = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (node.title != null)
+          GestureDetector(
+            onTap: () => _launchUrl(context, node.hrefUrl),
+            child: Text(node.title!,
+              style: TextStyle(
+                fontSize: 1.2 * kBaseFontSize,
+                // Web uses `line-height: normal` for title. MDN docs for it:
+                //   https://developer.mozilla.org/en-US/docs/Web/CSS/line-height#normal
+                // says actual value depends on user-agent, and default value
+                // can be roughly 1.2 (unitless). So, use the same here.
+                height: 1.2,
+                color: ContentTheme.of(context).colorLink))),
+        if (node.description != null)
+          Container(
+            padding: const EdgeInsets.only(top: 3),
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: Text(node.description!)),
+      ]);
+
+    final clippedTitleAndDescription = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      child: InsetShadowBox(
+        bottom: 8,
+        // TODO(#488) use different color for non-message contexts
+        // TODO(#647) use different color for highlighted messages
+        // TODO(#681) use different color for DM messages
+        color: MessageListTheme.of(context).streamMessageBgDefault,
+        child: ClipRect(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: 80),
+            child: OverflowBox(
+              maxHeight: double.infinity,
+              alignment: AlignmentDirectional.topStart,
+              fit: OverflowBoxFit.deferToChild,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: titleAndDescription))))));
+
+    final image = resolvedImageSrcUrl == null ? null
+      : GestureDetector(
+          onTap: () => _launchUrl(context, node.hrefUrl),
+          child: RealmContentNetworkImage(
+            resolvedImageSrcUrl,
+            fit: BoxFit.cover));
+
+    final result = isSmallWidth
+      ? Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 15,
+          children: [
+            if (image != null)
+              SizedBox(height: 110, width: double.infinity, child: image),
+            clippedTitleAndDescription,
+          ])
+      : Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (image != null)
+            SizedBox.square(dimension: 80, child: image),
+          Flexible(child: clippedTitleAndDescription),
+        ]);
+
+    return Padding(
+      // TODO(?) Web has a bottom margin `--markdown-interelement-space-px`
+      //   around the `message_embed` container, which is calculated here:
+      //     https://github.com/zulip/zulip/blob/d28f7d86223bab4f11629637d4237381943f6fc1/web/src/information_density.ts#L80-L102
+      //   But for now we use a static value of 6.72px instead which is the
+      //   default in the web client, see discussion:
+      //     https://github.com/zulip/zulip-flutter/pull/1049#discussion_r1915747908
+      padding: const EdgeInsets.only(bottom: 6.72),
+      child: Container(
+        height: !isSmallWidth ? 90 : null,
+        decoration: const BoxDecoration(
+          border: BorderDirectional(start: BorderSide(
+            // Web has the same color in light and dark mode.
+            color: Color(0xffededed), width: 3))),
+        padding: const EdgeInsets.all(5),
+        child: result));
+  }
+}
+
 //
 // Inline layout.
 //
@@ -1029,8 +1136,7 @@ class _InlineContentBuilder {
         assert(recognizer != null);
         _pushRecognizer(recognizer);
         final result = _buildNodes(node.nodes,
-          // Web has the same color in light and dark mode.
-          style: TextStyle(color: const HSLColor.fromAHSL(1, 200, 1, 0.4).toColor()));
+          style: TextStyle(color: ContentTheme.of(_context!).colorLink));
         _popRecognizer();
         return result;
 
@@ -1214,7 +1320,7 @@ class GlobalTime extends StatelessWidget {
   final GlobalTimeNode node;
   final TextStyle ambientTextStyle;
 
-  static final _dateFormat = DateFormat('EEE, MMM d, y, h:mm a'); // TODO(intl): localize date
+  static final _dateFormat = DateFormat('EEE, MMM d, y, h:mm a'); // TODO(i18n): localize date
 
   @override
   Widget build(BuildContext context) {
@@ -1509,7 +1615,7 @@ class AvatarImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = PerAccountStoreWidget.of(context);
-    final user = store.users[userId];
+    final user = store.getUser(userId);
 
     if (user == null) { // TODO(log)
       return const SizedBox.shrink();

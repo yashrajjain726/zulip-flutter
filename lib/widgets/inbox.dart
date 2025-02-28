@@ -382,22 +382,16 @@ class _DmItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = PerAccountStoreWidget.of(context);
-    final selfUser = store.users[store.selfUserId]!;
-
-    final zulipLocalizations = ZulipLocalizations.of(context);
     final designVariables = DesignVariables.of(context);
 
     final title = switch (narrow.otherRecipientIds) { // TODO dedupe with [RecentDmConversationsItem]
-      [] => selfUser.fullName,
-      [var otherUserId] =>
-        store.users[otherUserId]?.fullName ?? zulipLocalizations.unknownUserName,
+      [] => store.selfUser.fullName,
+      [var otherUserId] => store.userDisplayName(otherUserId),
 
       // TODO(i18n): List formatting, like you can do in JavaScript:
       //   new Intl.ListFormat('ja').format(['Chris', 'Greg', 'Alya', 'Shu'])
       //   // 'Chris、Greg、Alya、Shu'
-      _ => narrow.otherRecipientIds.map(
-        (id) => store.users[id]?.fullName ?? zulipLocalizations.unknownUserName
-      ).join(', '),
+      _ => narrow.otherRecipientIds.map(store.userDisplayName).join(', '),
     };
 
     return Material(
@@ -507,7 +501,8 @@ class _TopicItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final _StreamSectionTopicData(:topic, :count, :hasMention) = data;
+    final _StreamSectionTopicData(
+      :topic, :count, :hasMention, :lastUnreadId) = data;
 
     final store = PerAccountStoreWidget.of(context);
     final subscription = store.subscriptions[streamId]!;
@@ -525,7 +520,9 @@ class _TopicItem extends StatelessWidget {
             MessageListPage.buildRoute(context: context, narrow: narrow));
         },
         onLongPress: () => showTopicActionSheet(context,
-          channelId: streamId, topic: topic),
+          channelId: streamId,
+          topic: topic,
+          someMessageIdInTopic: lastUnreadId),
         child: ConstrainedBox(constraints: const BoxConstraints(minHeight: 34),
           child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
             const SizedBox(width: 63),
