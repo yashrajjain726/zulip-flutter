@@ -287,10 +287,6 @@
   "@errorNotificationOpenTitle": {
     "description": "Error title when notification opening fails"
   },
-  "errorNotificationOpenAccountMissing": "Учетной записи, связанной с этим оповещением, больше нет.",
-  "@errorNotificationOpenAccountMissing": {
-    "description": "Error message when the account associated with the notification is not found"
-  },
   "switchAccountButton": "Сменить учетную запись",
   "@switchAccountButton": {
     "description": "Label for main-menu button leading to the choose-account page."
@@ -1069,8 +1065,8 @@
   "@editAlreadyInProgressMessage": {
     "description": "Error message when a message edit cannot be saved because there is another edit already in progress."
   },
-  "discardDraftConfirmationDialogMessage": "При изменении сообщения текст из поля для редактирования удаляется.",
-  "@discardDraftConfirmationDialogMessage": {
+  "discardDraftForEditConfirmationDialogMessage": "При изменении сообщения текст из поля для редактирования удаляется.",
+  "@discardDraftForEditConfirmationDialogMessage": {
     "description": "Message for a confirmation dialog for discarding message text that was typed into the compose box."
   }
 }

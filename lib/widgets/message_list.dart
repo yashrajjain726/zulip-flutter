@@ -329,9 +329,18 @@ class MessageListAppBarTitle extends StatelessWidget {
   Widget _buildStreamRow(BuildContext context, {
     ZulipStream? stream,
   }) {
+    final store = PerAccountStoreWidget.of(context);
     final zulipLocalizations = ZulipLocalizations.of(context);
+
     // A null [Icon.icon] makes a blank space.
-    final icon = stream != null ? iconDataForStream(stream) : null;
+    IconData? icon;
+    Color? iconColor;
+    if (stream != null) {
+      icon = iconDataForStream(stream);
+      iconColor = colorSwatchFor(context, store.subscriptions[stream.streamId])
+        .iconOnBarBackground;
+    }
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       // TODO(design): The vertical alignment of the stream privacy icon is a bit ad hoc.
@@ -339,7 +348,7 @@ class MessageListAppBarTitle extends StatelessWidget {
       //     https://github.com/zulip/zulip-flutter/pull/219#discussion_r1281024746
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(size: 16, icon),
+        Icon(size: 16, color: iconColor, icon),
         const SizedBox(width: 4),
         Flexible(child: Text(
           stream?.name ?? zulipLocalizations.unknownChannelName)),
@@ -1407,7 +1416,7 @@ final _kMessageTimestampFormat = DateFormat('h:mm aa', 'en_US');
 class _SenderRow extends StatelessWidget {
   const _SenderRow({required this.message, required this.showTimestamp});
 
-  final Message message;
+  final MessageBase message;
   final bool showTimestamp;
 
   @override
@@ -1437,7 +1446,9 @@ class _SenderRow extends StatelessWidget {
                     userId: message.senderId),
                   const SizedBox(width: 8),
                   Flexible(
-                    child: Text(message.senderFullName, // TODO(#716): use `store.senderDisplayName`
+                    child: Text(message is Message
+                        ? store.senderDisplayName(message as Message)
+                        : store.userDisplayName(message.senderId),
                       style: TextStyle(
                         fontSize: 18,
                         height: (22 / 18),
@@ -1526,7 +1537,7 @@ class MessageWithPossibleSender extends StatelessWidget {
       behavior: HitTestBehavior.translucent,
       onLongPress: () => showMessageActionSheet(context: context, message: message),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.only(top: 4),
         child: Column(children: [
           if (item.showSender)
             _SenderRow(message: message, showTimestamp: true),
@@ -1544,14 +1555,18 @@ class MessageWithPossibleSender extends StatelessWidget {
                   if (editMessageErrorStatus != null)
                     _EditMessageStatusRow(messageId: message.id, status: editMessageErrorStatus)
                   else if (editStateText != null)
-                    Text(editStateText,
-                      textAlign: TextAlign.end,
-                      style: TextStyle(
-                        color: designVariables.labelEdited,
-                        fontSize: 12,
-                        height: (12 / 12),
-                        letterSpacing: proportionalLetterSpacing(
-                          context, 0.05, baseFontSize: 12))),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(editStateText,
+                        textAlign: TextAlign.end,
+                        style: TextStyle(
+                          color: designVariables.labelEdited,
+                          fontSize: 12,
+                          height: (12 / 12),
+                          letterSpacing: proportionalLetterSpacing(context,
+                            0.05, baseFontSize: 12))))
+                  else
+                    Padding(padding: const EdgeInsets.only(bottom: 4))
                 ])),
               SizedBox(width: 16,
                 child: star),
@@ -1582,30 +1597,34 @@ class _EditMessageStatusRow extends StatelessWidget {
 
     return switch (status) {
       // TODO parse markdown and show new content as local echo?
-      false => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: 1.5,
-        children: [
-          Text(
+      false => Padding(
+        padding: const EdgeInsets.only(bottom: 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 1.5,
+          children: [
+            Text(
+              style: baseTextStyle
+                .copyWith(color: designVariables.btnLabelAttLowIntInfo),
+              textAlign: TextAlign.end,
+              zulipLocalizations.savingMessageEditLabel),
+            // TODO instead place within bottom outer padding:
+            //   https://github.com/zulip/zulip-flutter/pull/1498#discussion_r2087576108
+            LinearProgressIndicator(
+              minHeight: 2,
+              color: designVariables.foreground.withValues(alpha: 0.5),
+              backgroundColor: designVariables.foreground.withValues(alpha: 0.2),
+            ),
+          ])),
+      true => Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: _RestoreEditMessageGestureDetector(
+          messageId: messageId,
+          child: Text(
             style: baseTextStyle
-              .copyWith(color: designVariables.btnLabelAttLowIntInfo),
+              .copyWith(color: designVariables.btnLabelAttLowIntDanger),
             textAlign: TextAlign.end,
-            zulipLocalizations.savingMessageEditLabel),
-          // TODO instead place within bottom outer padding:
-          //   https://github.com/zulip/zulip-flutter/pull/1498#discussion_r2087576108
-          LinearProgressIndicator(
-            minHeight: 2,
-            color: designVariables.foreground.withValues(alpha: 0.5),
-            backgroundColor: designVariables.foreground.withValues(alpha: 0.2),
-          ),
-        ]),
-      true => _RestoreEditMessageGestureDetector(
-        messageId: messageId,
-        child: Text(
-          style: baseTextStyle
-            .copyWith(color: designVariables.btnLabelAttLowIntDanger),
-          textAlign: TextAlign.end,
-          zulipLocalizations.savingMessageEditFailedLabel)),
+            zulipLocalizations.savingMessageEditFailedLabel))),
     };
   }
 }
@@ -1625,6 +1644,7 @@ class _RestoreEditMessageGestureDetector extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: () {
         final composeBoxState = MessageListPage.ancestorOf(context).composeBoxState;
+        // TODO(#1518) allow restore-edit-message from any message-list page
         if (composeBoxState == null) return;
         composeBoxState.startEditInteraction(messageId);
       },
