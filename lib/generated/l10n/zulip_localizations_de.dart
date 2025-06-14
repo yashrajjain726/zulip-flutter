@@ -9,25 +9,25 @@ class ZulipLocalizationsDe extends ZulipLocalizations {
   ZulipLocalizationsDe([String locale = 'de']) : super(locale);
 
   @override
-  String get aboutPageTitle => 'About Zulip';
+  String get aboutPageTitle => 'Über Zulip';
 
   @override
-  String get aboutPageAppVersion => 'App version';
+  String get aboutPageAppVersion => 'App-Version';
 
   @override
-  String get aboutPageOpenSourceLicenses => 'Open-source licenses';
+  String get aboutPageOpenSourceLicenses => 'Open-Source-Lizenzen';
 
   @override
   String get aboutPageTapToView => 'Tap to view';
 
   @override
-  String get chooseAccountPageTitle => 'Choose account';
+  String get chooseAccountPageTitle => 'Konto auswählen';
 
   @override
-  String get settingsPageTitle => 'Settings';
+  String get settingsPageTitle => 'Einstellungen';
 
   @override
-  String get switchAccountButton => 'Switch account';
+  String get switchAccountButton => 'Konto wechseln';
 
   @override
   String tryAnotherAccountMessage(Object url) {
@@ -120,7 +120,7 @@ class ZulipLocalizationsDe extends ZulipLocalizations {
   String get actionSheetOptionShare => 'Share';
 
   @override
-  String get actionSheetOptionQuoteAndReply => 'Quote and reply';
+  String get actionSheetOptionQuoteMessage => 'Quote message';
 
   @override
   String get actionSheetOptionStarMessage => 'Star message';
@@ -325,8 +325,8 @@ class ZulipLocalizationsDe extends ZulipLocalizations {
       'When you edit a message, the content that was previously in the compose box is discarded.';
 
   @override
-  String get discardDraftForMessageNotSentConfirmationDialogMessage =>
-      'When you restore a message not sent, the content that was previously in the compose box is discarded.';
+  String get discardDraftForOutboxConfirmationDialogMessage =>
+      'When you restore an unsent message, the content that was previously in the compose box is discarded.';
 
   @override
   String get discardDraftConfirmationDialogConfirmButton => 'Discard';
@@ -344,10 +344,7 @@ class ZulipLocalizationsDe extends ZulipLocalizations {
   String get composeBoxGenericContentHint => 'Type a message';
 
   @override
-  String get newDmSheetBackButtonLabel => 'Back';
-
-  @override
-  String get newDmSheetNextButtonLabel => 'Next';
+  String get newDmSheetComposeButtonLabel => 'Compose';
 
   @override
   String get newDmSheetScreenTitle => 'New DM';
@@ -640,10 +637,18 @@ class ZulipLocalizationsDe extends ZulipLocalizations {
   String get inboxPageTitle => 'Inbox';
 
   @override
+  String get inboxEmptyPlaceholder =>
+      'There are no unread messages in your inbox. Use the buttons below to view the combined feed or list of channels.';
+
+  @override
   String get recentDmConversationsPageTitle => 'Direct messages';
 
   @override
   String get recentDmConversationsSectionHeader => 'Direct messages';
+
+  @override
+  String get recentDmConversationsEmptyPlaceholder =>
+      'You have no direct messages yet! Why not start the conversation?';
 
   @override
   String get combinedFeedPageTitle => 'Combined feed';
@@ -656,6 +661,10 @@ class ZulipLocalizationsDe extends ZulipLocalizations {
 
   @override
   String get channelsPageTitle => 'Channels';
+
+  @override
+  String get channelsEmptyPlaceholder =>
+      'You are not subscribed to any channels yet.';
 
   @override
   String get mainMenuMyProfile => 'My profile';
@@ -682,9 +691,6 @@ class ZulipLocalizationsDe extends ZulipLocalizations {
 
   @override
   String get unpinnedSubscriptionsLabel => 'Unpinned';
-
-  @override
-  String get subscriptionListNoChannels => 'No channels found';
 
   @override
   String get notifSelfUser => 'You';
@@ -766,6 +772,44 @@ class ZulipLocalizationsDe extends ZulipLocalizations {
 
   @override
   String get pollWidgetOptionsMissing => 'This poll has no options yet.';
+
+  @override
+  String get initialAnchorSettingTitle => 'Open message feeds at';
+
+  @override
+  String get initialAnchorSettingDescription =>
+      'You can choose whether message feeds open at your first unread message or at the newest messages.';
+
+  @override
+  String get initialAnchorSettingFirstUnreadAlways => 'First unread message';
+
+  @override
+  String get initialAnchorSettingFirstUnreadConversations =>
+      'First unread message in single conversations, newest message elsewhere';
+
+  @override
+  String get initialAnchorSettingNewestAlways => 'Newest message';
+
+  @override
+  String get markReadOnScrollSettingTitle => 'Mark messages as read on scroll';
+
+  @override
+  String get markReadOnScrollSettingDescription =>
+      'When scrolling through messages, should they automatically be marked as read?';
+
+  @override
+  String get markReadOnScrollSettingAlways => 'Always';
+
+  @override
+  String get markReadOnScrollSettingNever => 'Never';
+
+  @override
+  String get markReadOnScrollSettingConversations =>
+      'Only in conversation views';
+
+  @override
+  String get markReadOnScrollSettingConversationsDescription =>
+      'Messages will be automatically marked as read only when viewing a single topic or direct message conversation.';
 
   @override
   String get experimentalFeatureSettingsPageTitle => 'Experimental features';

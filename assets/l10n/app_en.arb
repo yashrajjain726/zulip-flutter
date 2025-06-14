@@ -140,9 +140,9 @@
   "@actionSheetOptionShare":  {
     "description": "Label for share button on action sheet."
   },
-  "actionSheetOptionQuoteAndReply": "Quote and reply",
-  "@actionSheetOptionQuoteAndReply":  {
-    "description": "Label for Quote and reply button on action sheet."
+  "actionSheetOptionQuoteMessage": "Quote message",
+  "@actionSheetOptionQuoteMessage":  {
+    "description": "Label for the 'Quote message' button in the message action sheet."
   },
   "actionSheetOptionStarMessage": "Star message",
   "@actionSheetOptionStarMessage":  {
@@ -385,9 +385,9 @@
   "@discardDraftForEditConfirmationDialogMessage": {
     "description": "Message for a confirmation dialog for discarding message text that was typed into the compose box, when editing a message."
   },
-  "discardDraftForMessageNotSentConfirmationDialogMessage": "When you restore a message not sent, the content that was previously in the compose box is discarded.",
-  "@discardDraftForMessageNotSentConfirmationDialogMessage": {
-    "description": "Message for a confirmation dialog when restoring a message not sent, for discarding message text that was typed into the compose box."
+  "discardDraftForOutboxConfirmationDialogMessage": "When you restore an unsent message, the content that was previously in the compose box is discarded.",
+  "@discardDraftForOutboxConfirmationDialogMessage": {
+    "description": "Message for a confirmation dialog when restoring an outbox message, for discarding message text that was typed into the compose box."
   },
   "discardDraftConfirmationDialogConfirmButton": "Discard",
   "@discardDraftConfirmationDialogConfirmButton": {
@@ -409,13 +409,9 @@
   "@composeBoxGenericContentHint": {
     "description": "Hint text for content input when sending a message."
   },
-  "newDmSheetBackButtonLabel": "Back",
-  "@newDmSheetBackButtonLabel": {
-    "description": "Label for the back button in the new DM sheet, allowing the user to return to the previous screen."
-  },
-  "newDmSheetNextButtonLabel": "Next",
-  "@newDmSheetNextButtonLabel": {
-    "description": "Label for the front button in the new DM sheet, if applicable, for navigation or action."
+  "newDmSheetComposeButtonLabel": "Compose",
+  "@newDmSheetComposeButtonLabel": {
+    "description": "Label for the compose button in the new DM sheet that starts composing a message to the selected users."
   },
   "newDmSheetScreenTitle": "New DM",
   "@newDmSheetScreenTitle": {
@@ -431,7 +427,7 @@
   },
   "newDmSheetSearchHintSomeSelected": "Add another user…",
   "@newDmSheetSearchHintSomeSelected": {
-    "description": "Hint text for the search bar when at least one user is selected"
+    "description": "Hint text for the search bar when at least one user is selected."
   },
   "newDmSheetNoUsersFound": "No users found",
   "@newDmSheetNoUsersFound": {
@@ -781,6 +777,10 @@
   "@inboxPageTitle": {
     "description": "Title for the page with unreads."
   },
+  "inboxEmptyPlaceholder": "There are no unread messages in your inbox. Use the buttons below to view the combined feed or list of channels.",
+  "@inboxEmptyPlaceholder": {
+    "description": "Centered text on the 'Inbox' page saying that there is no content to show."
+  },
   "recentDmConversationsPageTitle": "Direct messages",
   "@recentDmConversationsPageTitle": {
     "description": "Title for the page with a list of DM conversations."
@@ -788,6 +788,10 @@
   "recentDmConversationsSectionHeader": "Direct messages",
   "@recentDmConversationsSectionHeader": {
     "description": "Heading for direct messages section on the 'Inbox' message view."
+  },
+  "recentDmConversationsEmptyPlaceholder": "You have no direct messages yet! Why not start the conversation?",
+  "@recentDmConversationsEmptyPlaceholder": {
+    "description": "Centered text on the 'Direct messages' page saying that there is no content to show."
   },
   "combinedFeedPageTitle": "Combined feed",
   "@combinedFeedPageTitle": {
@@ -804,6 +808,10 @@
   "channelsPageTitle": "Channels",
   "@channelsPageTitle": {
     "description": "Title for the page with a list of subscribed channels."
+  },
+  "channelsEmptyPlaceholder": "You are not subscribed to any channels yet.",
+  "@channelsEmptyPlaceholder": {
+    "description": "Centered text on the 'Channels' page saying that there is no content to show."
   },
   "mainMenuMyProfile": "My profile",
   "@mainMenuMyProfile": {
@@ -832,10 +840,6 @@
   "unpinnedSubscriptionsLabel": "Unpinned",
   "@unpinnedSubscriptionsLabel": {
     "description": "Label for the list of unpinned subscribed channels."
-  },
-  "subscriptionListNoChannels": "No channels found",
-  "@subscriptionListNoChannels": {
-    "description": "Text to display on subscribed-channels page when there are no subscribed channels."
   },
   "notifSelfUser": "You",
   "@notifSelfUser": {
@@ -946,6 +950,50 @@
   "pollWidgetOptionsMissing": "This poll has no options yet.",
   "@pollWidgetOptionsMissing": {
     "description": "Text to display for a poll when it has no options"
+  },
+  "initialAnchorSettingTitle": "Open message feeds at",
+  "@initialAnchorSettingTitle": {
+    "description": "Title of setting controlling initial anchor of message list."
+  },
+  "initialAnchorSettingDescription": "You can choose whether message feeds open at your first unread message or at the newest messages.",
+  "@initialAnchorSettingDescription": {
+    "description": "Description of setting controlling initial anchor of message list."
+  },
+  "initialAnchorSettingFirstUnreadAlways": "First unread message",
+  "@initialAnchorSettingFirstUnreadAlways":  {
+    "description": "Label for a value of setting controlling initial anchor of message list."
+  },
+  "initialAnchorSettingFirstUnreadConversations": "First unread message in single conversations, newest message elsewhere",
+  "@initialAnchorSettingFirstUnreadConversations":  {
+    "description": "Label for a value of setting controlling initial anchor of message list."
+  },
+  "initialAnchorSettingNewestAlways": "Newest message",
+  "@initialAnchorSettingNewestAlways":  {
+    "description": "Label for a value of setting controlling initial anchor of message list."
+  },
+  "markReadOnScrollSettingTitle": "Mark messages as read on scroll",
+  "@markReadOnScrollSettingTitle": {
+    "description": "Title of setting controlling which message-list views should mark read on scroll."
+  },
+  "markReadOnScrollSettingDescription": "When scrolling through messages, should they automatically be marked as read?",
+  "@markReadOnScrollSettingDescription": {
+    "description": "Description of setting controlling which message-list views should mark read on scroll."
+  },
+  "markReadOnScrollSettingAlways": "Always",
+  "@markReadOnScrollSettingAlways":  {
+    "description": "Label for a value of setting controlling which message-list views should mark read on scroll."
+  },
+  "markReadOnScrollSettingNever": "Never",
+  "@markReadOnScrollSettingNever":  {
+    "description": "Label for a value of setting controlling which message-list views should mark read on scroll."
+  },
+  "markReadOnScrollSettingConversations": "Only in conversation views",
+  "@markReadOnScrollSettingConversations":  {
+    "description": "Label for a value of setting controlling which message-list views should mark read on scroll."
+  },
+  "markReadOnScrollSettingConversationsDescription": "Messages will be automatically marked as read only when viewing a single topic or direct message conversation.",
+  "@markReadOnScrollSettingConversationsDescription":  {
+    "description": "Description for a value of setting controlling which message-list views should mark read on scroll."
   },
   "experimentalFeatureSettingsPageTitle": "Experimental features",
   "@experimentalFeatureSettingsPageTitle": {

@@ -79,7 +79,7 @@ class ZulipLocalizationsRu extends ZulipLocalizations {
       'Отметить канал как прочитанный';
 
   @override
-  String get actionSheetOptionListOfTopics => 'List of topics';
+  String get actionSheetOptionListOfTopics => 'Список тем';
 
   @override
   String get actionSheetOptionMuteTopic => 'Отключить тему';
@@ -119,13 +119,14 @@ class ZulipLocalizationsRu extends ZulipLocalizations {
       'Отметить как непрочитанные начиная отсюда';
 
   @override
-  String get actionSheetOptionHideMutedMessage => 'Hide muted message again';
+  String get actionSheetOptionHideMutedMessage =>
+      'Скрыть отключенное сообщение';
 
   @override
   String get actionSheetOptionShare => 'Поделиться';
 
   @override
-  String get actionSheetOptionQuoteAndReply => 'Ответить с цитированием';
+  String get actionSheetOptionQuoteMessage => 'Quote message';
 
   @override
   String get actionSheetOptionStarMessage => 'Отметить сообщение';
@@ -333,8 +334,8 @@ class ZulipLocalizationsRu extends ZulipLocalizations {
       'При изменении сообщения текст из поля для редактирования удаляется.';
 
   @override
-  String get discardDraftForMessageNotSentConfirmationDialogMessage =>
-      'When you restore a message not sent, the content that was previously in the compose box is discarded.';
+  String get discardDraftForOutboxConfirmationDialogMessage =>
+      'При восстановлении неотправленного сообщения содержимое поля редактирования очищается.';
 
   @override
   String get discardDraftConfirmationDialogConfirmButton => 'Сбросить';
@@ -352,25 +353,22 @@ class ZulipLocalizationsRu extends ZulipLocalizations {
   String get composeBoxGenericContentHint => 'Ввести сообщение';
 
   @override
-  String get newDmSheetBackButtonLabel => 'Back';
+  String get newDmSheetComposeButtonLabel => 'Написать';
 
   @override
-  String get newDmSheetNextButtonLabel => 'Next';
+  String get newDmSheetScreenTitle => 'Новое ЛС';
 
   @override
-  String get newDmSheetScreenTitle => 'New DM';
+  String get newDmFabButtonLabel => 'Новое ЛС';
 
   @override
-  String get newDmFabButtonLabel => 'New DM';
+  String get newDmSheetSearchHintEmpty => 'Добавить пользователей';
 
   @override
-  String get newDmSheetSearchHintEmpty => 'Add one or more users';
+  String get newDmSheetSearchHintSomeSelected => 'Добавить еще…';
 
   @override
-  String get newDmSheetSearchHintSomeSelected => 'Add another user…';
-
-  @override
-  String get newDmSheetNoUsersFound => 'No users found';
+  String get newDmSheetNoUsersFound => 'Никто не найден';
 
   @override
   String composeBoxDmContentHint(String user) {
@@ -653,10 +651,18 @@ class ZulipLocalizationsRu extends ZulipLocalizations {
   String get inboxPageTitle => 'Входящие';
 
   @override
+  String get inboxEmptyPlaceholder =>
+      'Нет непрочитанных входящих сообщений. Используйте кнопки ниже для просмотра объединенной ленты или списка каналов.';
+
+  @override
   String get recentDmConversationsPageTitle => 'Личные сообщения';
 
   @override
   String get recentDmConversationsSectionHeader => 'Личные сообщения';
+
+  @override
+  String get recentDmConversationsEmptyPlaceholder =>
+      'У вас пока нет личных сообщений! Почему бы не начать беседу?';
 
   @override
   String get combinedFeedPageTitle => 'Объединенная лента';
@@ -671,10 +677,14 @@ class ZulipLocalizationsRu extends ZulipLocalizations {
   String get channelsPageTitle => 'Каналы';
 
   @override
+  String get channelsEmptyPlaceholder =>
+      'Вы еще не подписаны ни на один канал.';
+
+  @override
   String get mainMenuMyProfile => 'Мой профиль';
 
   @override
-  String get topicsButtonLabel => 'TOPICS';
+  String get topicsButtonLabel => 'ТЕМЫ';
 
   @override
   String get channelFeedButtonTooltip => 'Лента канала';
@@ -695,9 +705,6 @@ class ZulipLocalizationsRu extends ZulipLocalizations {
 
   @override
   String get unpinnedSubscriptionsLabel => 'Откреплены';
-
-  @override
-  String get subscriptionListNoChannels => 'Каналы не найдены';
 
   @override
   String get notifSelfUser => 'Вы';
@@ -752,7 +759,7 @@ class ZulipLocalizationsRu extends ZulipLocalizations {
   String get messageIsMovedLabel => 'ПЕРЕМЕЩЕНО';
 
   @override
-  String get messageNotSentLabel => 'MESSAGE NOT SENT';
+  String get messageNotSentLabel => 'СООБЩЕНИЕ НЕ ОТПРАВЛЕНО';
 
   @override
   String pollVoterNames(String voterNames) {
@@ -781,6 +788,45 @@ class ZulipLocalizationsRu extends ZulipLocalizations {
   String get pollWidgetOptionsMissing => 'В опросе пока нет вариантов ответа.';
 
   @override
+  String get initialAnchorSettingTitle => 'Где открывать ленту сообщений';
+
+  @override
+  String get initialAnchorSettingDescription =>
+      'Можно открывать ленту сообщений на первом непрочитанном сообщении или на самом новом.';
+
+  @override
+  String get initialAnchorSettingFirstUnreadAlways =>
+      'Первое непрочитанное сообщение';
+
+  @override
+  String get initialAnchorSettingFirstUnreadConversations =>
+      'Первое непрочитанное сообщение в личных беседах, самое новое в остальных';
+
+  @override
+  String get initialAnchorSettingNewestAlways => 'Самое новое сообщение';
+
+  @override
+  String get markReadOnScrollSettingTitle => 'Mark messages as read on scroll';
+
+  @override
+  String get markReadOnScrollSettingDescription =>
+      'When scrolling through messages, should they automatically be marked as read?';
+
+  @override
+  String get markReadOnScrollSettingAlways => 'Always';
+
+  @override
+  String get markReadOnScrollSettingNever => 'Never';
+
+  @override
+  String get markReadOnScrollSettingConversations =>
+      'Only in conversation views';
+
+  @override
+  String get markReadOnScrollSettingConversationsDescription =>
+      'Messages will be automatically marked as read only when viewing a single topic or direct message conversation.';
+
+  @override
   String get experimentalFeatureSettingsPageTitle =>
       'Экспериментальные функции';
 
@@ -793,7 +839,7 @@ class ZulipLocalizationsRu extends ZulipLocalizations {
 
   @override
   String get errorNotificationOpenAccountNotFound =>
-      'The account associated with this notification could not be found.';
+      'Учетная запись, связанная с этим уведомлением, не найдена.';
 
   @override
   String get errorReactionAddingFailedTitle => 'Не удалось добавить реакцию';
@@ -811,13 +857,13 @@ class ZulipLocalizationsRu extends ZulipLocalizations {
   String get noEarlierMessages => 'Предшествующих сообщений нет';
 
   @override
-  String get mutedSender => 'Muted sender';
+  String get mutedSender => 'Отключенный отправитель';
 
   @override
-  String get revealButtonLabel => 'Reveal message for muted sender';
+  String get revealButtonLabel => 'Показать сообщение отключенного отправителя';
 
   @override
-  String get mutedUser => 'Muted user';
+  String get mutedUser => 'Отключенный пользователь';
 
   @override
   String get scrollToBottomTooltip => 'Пролистать вниз';
