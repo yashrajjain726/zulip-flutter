@@ -833,7 +833,7 @@ class QuoteAndReplyButton extends MessageActionSheetMenuItemButton {
 
   @override
   String label(ZulipLocalizations zulipLocalizations) {
-    return zulipLocalizations.actionSheetOptionQuoteAndReply;
+    return zulipLocalizations.actionSheetOptionQuoteMessage;
   }
 
   @override void onPressed() async {
@@ -896,9 +896,11 @@ class MarkAsUnreadButton extends MessageActionSheetMenuItemButton {
   }
 
   @override void onPressed() async {
-    final narrow = findMessageListPage().narrow;
+    final messageListPage = findMessageListPage();
     unawaited(ZulipAction.markNarrowAsUnreadFromMessage(pageContext,
-      message, narrow));
+      message, messageListPage.narrow));
+    // TODO should we alert the user about this change somehow? A snackbar?
+    messageListPage.markReadOnScroll = false;
   }
 }
 

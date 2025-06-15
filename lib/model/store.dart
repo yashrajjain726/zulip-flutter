@@ -645,6 +645,10 @@ class PerAccountStore extends PerAccountStoreBase with ChangeNotifier, EmojiStor
   @override
   Iterable<User> get allUsers => _users.allUsers;
 
+  @override
+  bool isUserMuted(int userId, {MutedUsersEvent? event}) =>
+    _users.isUserMuted(userId, event: event);
+
   final UserStoreImpl _users;
 
   final TypingStatus typingStatus;
@@ -753,6 +757,9 @@ class PerAccountStore extends PerAccountStoreBase with ChangeNotifier, EmojiStor
   @override
   void unregisterMessageList(MessageListView view) =>
     _messages.unregisterMessageList(view);
+  @override
+  void markReadFromScroll(Iterable<int> messageIds) =>
+    _messages.markReadFromScroll(messageIds);
   @override
   Future<void> sendMessage({required MessageDestination destination, required String content}) {
     assert(!_disposed);
@@ -949,6 +956,11 @@ class PerAccountStore extends PerAccountStoreBase with ChangeNotifier, EmojiStor
         assert(debugLog("server event: reaction/${event.op}"));
         _messages.handleReactionEvent(event);
 
+      case MutedUsersEvent():
+        assert(debugLog("server event: muted_users"));
+        _users.handleMutedUsersEvent(event);
+        notifyListeners();
+
       case UnexpectedEvent():
         assert(debugLog("server event: ${jsonEncode(event.toJson())}")); // TODO log better
     }
@@ -1066,7 +1078,7 @@ class LiveGlobalStore extends GlobalStore {
     // What directory should we use?
     //   path_provider's getApplicationSupportDirectory:
     //     on Android, -> Flutter's PathUtils.getFilesDir -> https://developer.android.com/reference/android/content/Context#getFilesDir()
-    //       -> empirically /data/data/com.zulip.flutter/files/
+    //       -> empirically /data/data/com.zulipmobile/files/
     //     on iOS, -> "Library/Application Support" via https://developer.apple.com/documentation/foundation/nssearchpathdirectory/nsapplicationsupportdirectory
     //     on Linux, -> "${XDG_DATA_HOME:-~/.local/share}/com.zulip.flutter/"
     //     All seem reasonable.
