@@ -13,6 +13,7 @@ import '../api/route/messages.dart';
 import '../generated/l10n/zulip_localizations.dart';
 import '../model/binding.dart';
 import '../model/compose.dart';
+import '../model/message.dart';
 import '../model/narrow.dart';
 import '../model/store.dart';
 import 'actions.dart';
@@ -858,9 +859,11 @@ class _FixedDestinationContentInput extends StatelessWidget {
 
       case DmNarrow(otherRecipientIds: [final otherUserId]):
         final store = PerAccountStoreWidget.of(context);
-        final fullName = store.getUser(otherUserId)?.fullName;
-        if (fullName == null) return zulipLocalizations.composeBoxGenericContentHint;
-        return zulipLocalizations.composeBoxDmContentHint(fullName);
+        final user = store.getUser(otherUserId);
+        if (user == null) return zulipLocalizations.composeBoxGenericContentHint;
+        // TODO write a test where the user is muted
+        return zulipLocalizations.composeBoxDmContentHint(
+          store.userDisplayName(otherUserId, replaceIfMuted: false));
 
       case DmNarrow(): // A group DM thread.
         return zulipLocalizations.composeBoxGroupDmContentHint;
@@ -1288,15 +1291,8 @@ class _SendButtonState extends State<_SendButton> {
     final content = controller.content.textNormalized;
 
     controller.content.clear();
-    // The following `stoppedComposing` call is currently redundant,
-    // because clearing input sends a "typing stopped" notice.
-    // It will be necessary once we resolve #720.
-    store.typingNotifier.stoppedComposing();
 
     try {
-      // TODO(#720) clear content input only on success response;
-      //   while waiting, put input(s) and send button into a disabled
-      //   "working on it" state (letting input text be selected for copying).
       await store.sendMessage(destination: widget.getDestination(), content: content);
     } on ApiRequestException catch (e) {
       if (!mounted) return;
@@ -1388,7 +1384,6 @@ class _ComposeBoxContainer extends StatelessWidget {
         border: Border(top: BorderSide(color: designVariables.borderBar)),
         boxShadow: ComposeBoxTheme.of(context).boxShadow,
       ),
-      // TODO(#720) try a Stack for the overlaid linear progress indicator
       child: Material(
         color: designVariables.composeBoxBg,
         child: Column(
@@ -1546,6 +1541,15 @@ sealed class ComposeBoxController {
   final content = ComposeContentController();
   final contentFocusNode = FocusNode();
 
+  /// If no input is focused, requests focus on the appropriate input.
+  ///
+  /// This encapsulates choosing the topic or content input
+  /// when both exist (see [StreamComposeBoxController.requestFocusIfUnfocused]).
+  void requestFocusIfUnfocused() {
+    if (contentFocusNode.hasFocus) return;
+    contentFocusNode.requestFocus();
+  }
+
   @mustCallSuper
   void dispose() {
     content.dispose();
@@ -1608,6 +1612,19 @@ class StreamComposeBoxController extends ComposeBoxController {
   final topicFocusNode = FocusNode();
   final ValueNotifier<ComposeTopicInteractionStatus> topicInteractionStatus =
     ValueNotifier(ComposeTopicInteractionStatus.notEditingNotChosen);
+
+  @override void requestFocusIfUnfocused() {
+    if (topicFocusNode.hasFocus || contentFocusNode.hasFocus) return;
+    switch (topicInteractionStatus.value) {
+      case ComposeTopicInteractionStatus.notEditingNotChosen:
+        topicFocusNode.requestFocus();
+      case ComposeTopicInteractionStatus.isEditing:
+        // (should be impossible given early-return on topicFocusNode.hasFocus)
+        break;
+      case ComposeTopicInteractionStatus.hasChosen:
+        contentFocusNode.requestFocus();
+    }
+  }
 
   @override
   void dispose() {
@@ -1724,10 +1741,10 @@ class _ErrorBanner extends _Banner {
 
   @override
   Widget? buildTrailing(context) {
-    // TODO(#720) "x" button goes here.
-    //   24px square with 8px touchable padding in all directions?
-    //   and `bool get padEnd => false`; see Figma:
-    //     https://www.figma.com/design/1JTNtYo9memgW7vV6d0ygq/Zulip-Mobile?node-id=4031-17029&m=dev
+    // An "x" button can go here.
+    // 24px square with 8px touchable padding in all directions?
+    // and `bool get padEnd => false`; see Figma:
+    //   https://www.figma.com/design/1JTNtYo9memgW7vV6d0ygq/Zulip-Mobile?node-id=4031-17029&m=dev
     return null;
   }
 }
@@ -1814,6 +1831,7 @@ class ComposeBox extends StatefulWidget {
       case CombinedFeedNarrow():
       case MentionsNarrow():
       case StarredMessagesNarrow():
+      case KeywordSearchNarrow():
         return false;
     }
   }
@@ -1825,6 +1843,16 @@ class ComposeBox extends StatefulWidget {
 /// The interface for the state of a [ComposeBox].
 abstract class ComposeBoxState extends State<ComposeBox> {
   ComposeBoxController get controller;
+
+  /// Fills the compose box with the content of an [OutboxMessage]
+  /// for a failed [sendMessage] request.
+  ///
+  /// If there is already text in the compose box, gives a confirmation dialog
+  /// to confirm that it is OK to discard that text.
+  ///
+  /// [localMessageId], as in [OutboxMessage.localMessageId], must be present
+  /// in the message store.
+  void restoreMessageNotSent(int localMessageId);
 
   /// Switch the compose box to editing mode.
   ///
@@ -1846,6 +1874,29 @@ abstract class ComposeBoxState extends State<ComposeBox> {
 class _ComposeBoxState extends State<ComposeBox> with PerAccountStoreAwareStateMixin<ComposeBox> implements ComposeBoxState {
   @override ComposeBoxController get controller => _controller!;
   ComposeBoxController? _controller;
+
+  @override
+  void restoreMessageNotSent(int localMessageId) async {
+    final zulipLocalizations = ZulipLocalizations.of(context);
+
+    final abort = await _abortBecauseContentInputNotEmpty(
+      dialogMessage: zulipLocalizations.discardDraftForOutboxConfirmationDialogMessage);
+    if (abort || !mounted) return;
+
+    final store = PerAccountStoreWidget.of(context);
+    final outboxMessage = store.takeOutboxMessage(localMessageId);
+    setState(() {
+      _setNewController(store);
+      final controller = this.controller;
+      controller
+        ..content.value = TextEditingValue(text: outboxMessage.contentMarkdown)
+        ..contentFocusNode.requestFocus();
+      if (controller is StreamComposeBoxController) {
+        controller.topic.setTopic(
+          (outboxMessage.conversation as StreamConversation).topic);
+      }
+    });
+  }
 
   @override
   void startEditInteraction(int messageId) async {
@@ -1927,7 +1978,8 @@ class _ComposeBoxState extends State<ComposeBox> with PerAccountStoreAwareStateM
     // TODO timeout this request?
     if (!mounted) return;
     if (!identical(controller, emptyEditController)) {
-      // user tapped Cancel during the fetch-raw-content request
+      // During the fetch-raw-content request, the user tapped Cancel
+      // or tapped a failed message edit or failed outbox message to restore.
       // TODO in this case we don't want the error dialog caused by
       //   ZulipAction.fetchRawContentWithFeedback; suppress that
       return;
@@ -1998,6 +2050,7 @@ class _ComposeBoxState extends State<ComposeBox> with PerAccountStoreAwareStateM
       case CombinedFeedNarrow():
       case MentionsNarrow():
       case StarredMessagesNarrow():
+      case KeywordSearchNarrow():
         assert(false);
     }
   }
@@ -2032,6 +2085,7 @@ class _ComposeBoxState extends State<ComposeBox> with PerAccountStoreAwareStateM
       case CombinedFeedNarrow():
       case MentionsNarrow():
       case StarredMessagesNarrow():
+      case KeywordSearchNarrow():
         return null;
     }
     return null;
@@ -2065,11 +2119,6 @@ class _ComposeBoxState extends State<ComposeBox> with PerAccountStoreAwareStateM
       }
     }
 
-    // TODO(#720) dismissable message-send error, maybe something like:
-    //     if (controller.sendMessageError.value != null) {
-    //       errorBanner = _ErrorBanner(label:
-    //         ZulipLocalizations.of(context).errorSendMessageTimeout);
-    //     }
     return ComposeBoxInheritedWidget.fromComposeBoxState(this,
       child: _ComposeBoxContainer(body: body, banner: banner));
   }

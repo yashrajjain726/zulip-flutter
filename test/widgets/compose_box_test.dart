@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:checks/checks.dart';
+import 'package:collection/collection.dart';
 import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_checks/flutter_checks.dart';
@@ -42,6 +43,7 @@ import 'test_app.dart';
 
 void main() {
   TestZulipBinding.ensureInitialized();
+  MessageListPage.debugEnableMarkReadOnScroll = false;
 
   late PerAccountStore store;
   late FakeApiConnection connection;
@@ -56,14 +58,23 @@ void main() {
     User? selfUser,
     List<User> otherUsers = const [],
     List<ZulipStream> streams = const [],
+    List<Message>? messages,
     bool? mandatoryTopics,
     int? zulipFeatureLevel,
   }) async {
     if (narrow case ChannelNarrow(:var streamId) || TopicNarrow(: var streamId)) {
-      assert(streams.any((stream) => stream.streamId == streamId),
+      final channel = streams.firstWhereOrNull((s) => s.streamId == streamId);
+      assert(channel != null,
         'Add a channel with "streamId" the same as of $narrow.streamId to the store.');
+      if (narrow is ChannelNarrow) {
+        // By default, bypass the complexity where the topic input is autofocused
+        // on an empty fetch, by making the fetch not empty. (In particular that
+        // complexity includes a getStreamTopics fetch for topic autocomplete.)
+        messages ??= [eg.streamMessage(stream: channel)];
+      }
     }
     addTearDown(testBinding.reset);
+    messages ??= [];
     selfUser ??= eg.selfUser;
     zulipFeatureLevel ??= eg.futureZulipFeatureLevel;
     final selfAccount = eg.account(user: selfUser, zulipFeatureLevel: zulipFeatureLevel);
@@ -81,7 +92,11 @@ void main() {
     connection = store.connection as FakeApiConnection;
 
     connection.prepare(json:
-      eg.newestGetMessagesResult(foundOldest: true, messages: []).toJson());
+      eg.newestGetMessagesResult(foundOldest: true, messages: messages).toJson());
+    if (narrow is ChannelNarrow && messages.isEmpty) {
+      // The topic input will autofocus, triggering a getStreamTopics request.
+      connection.prepare(json: GetStreamTopicsResult(topics: []).toJson());
+    }
     await tester.pumpWidget(TestZulipApp(accountId: selfAccount.id,
       child: MessageListPage(initNarrow: narrow)));
     await tester.pumpAndSettle();
@@ -133,6 +148,64 @@ void main() {
     await tester.tap(sendButtonFinder);
     await tester.pump(Duration.zero);
   }
+
+  group('auto focus', () {
+    testWidgets('ChannelNarrow, non-empty fetch', (tester) async {
+      final channel = eg.stream();
+      await prepareComposeBox(tester,
+        narrow: ChannelNarrow(channel.streamId),
+        streams: [channel],
+        messages: [eg.streamMessage(stream: channel)]);
+      check(controller).isA<StreamComposeBoxController>()
+        ..topicFocusNode.hasFocus.isFalse()
+        ..contentFocusNode.hasFocus.isFalse();
+    });
+
+    testWidgets('ChannelNarrow, empty fetch', (tester) async {
+      final channel = eg.stream();
+      await prepareComposeBox(tester,
+        narrow: ChannelNarrow(channel.streamId),
+        streams: [channel],
+        messages: []);
+      check(controller).isA<StreamComposeBoxController>()
+        .topicFocusNode.hasFocus.isTrue();
+    });
+
+    testWidgets('TopicNarrow, non-empty fetch', (tester) async {
+      final channel = eg.stream();
+      await prepareComposeBox(tester,
+        narrow: TopicNarrow(channel.streamId, eg.t('topic')),
+        streams: [channel],
+        messages: [eg.streamMessage(stream: channel, topic: 'topic')]);
+      check(controller).isNotNull().contentFocusNode.hasFocus.isFalse();
+    });
+
+    testWidgets('TopicNarrow, empty fetch', (tester) async {
+      final channel = eg.stream();
+      await prepareComposeBox(tester,
+        narrow: TopicNarrow(channel.streamId, eg.t('topic')),
+        streams: [channel],
+        messages: []);
+      check(controller).isNotNull().contentFocusNode.hasFocus.isTrue();
+    });
+
+    testWidgets('DmNarrow, non-empty fetch', (tester) async {
+      final user = eg.user();
+      await prepareComposeBox(tester,
+        selfUser: eg.selfUser,
+        narrow: DmNarrow.withUser(user.userId, selfUserId: eg.selfUser.userId),
+        messages: [eg.dmMessage(from: user, to: [eg.selfUser])]);
+      check(controller).isNotNull().contentFocusNode.hasFocus.isFalse();
+    });
+
+    testWidgets('DmNarrow, empty fetch', (tester) async {
+      await prepareComposeBox(tester,
+        selfUser: eg.selfUser,
+        narrow: DmNarrow.withUser(eg.user().userId, selfUserId: eg.selfUser.userId),
+        messages: []);
+      check(controller).isNotNull().contentFocusNode.hasFocus.isTrue();
+    });
+  });
 
   group('ComposeBoxTheme', () {
     test('lerp light to dark, no crash', () {
@@ -1458,6 +1531,165 @@ void main() {
     }
   }
 
+  group('restoreMessageNotSent', () {
+    final channel = eg.stream();
+    final topic = 'topic';
+    final topicNarrow = eg.topicNarrow(channel.streamId, topic);
+
+    final failedMessageContent = 'failed message';
+    final failedMessageFinder = find.widgetWithText(
+      OutboxMessageWithPossibleSender, failedMessageContent, skipOffstage: true);
+
+    Future<void> prepareMessageNotSent(WidgetTester tester, {
+      required Narrow narrow,
+      List<User> otherUsers = const [],
+    }) async {
+      TypingNotifier.debugEnable = false;
+      addTearDown(TypingNotifier.debugReset);
+      await prepareComposeBox(tester,
+        narrow: narrow, streams: [channel], otherUsers: otherUsers);
+
+      if (narrow is ChannelNarrow) {
+        connection.prepare(json: GetStreamTopicsResult(topics: []).toJson());
+        await enterTopic(tester, narrow: narrow, topic: topic);
+      }
+      await enterContent(tester, failedMessageContent);
+      connection.prepare(httpException: SocketException('error'));
+      await tester.tap(find.byIcon(ZulipIcons.send));
+      await tester.pump(Duration.zero);
+      check(state).controller.content.text.equals('');
+
+      await tester.tap(find.byWidget(checkErrorDialog(tester,
+        expectedTitle: 'Message not sent')));
+      await tester.pump();
+      check(failedMessageFinder).findsOne();
+    }
+
+    testWidgets('restore content in DM narrow', (tester) async {
+      final dmNarrow = DmNarrow.withUser(
+        eg.otherUser.userId, selfUserId: eg.selfUser.userId);
+      await prepareMessageNotSent(tester, narrow: dmNarrow, otherUsers: [eg.otherUser]);
+
+      await tester.tap(failedMessageFinder);
+      await tester.pump();
+      check(state).controller
+        ..content.text.equals(failedMessageContent)
+        ..contentFocusNode.hasFocus.isTrue();
+    });
+
+    testWidgets('restore content in topic narrow', (tester) async {
+      await prepareMessageNotSent(tester, narrow: topicNarrow);
+
+      await tester.tap(failedMessageFinder);
+      await tester.pump();
+      check(state).controller
+        ..content.text.equals(failedMessageContent)
+        ..contentFocusNode.hasFocus.isTrue();
+    });
+
+    testWidgets('restore content and topic in channel narrow', (tester) async {
+      final channelNarrow = ChannelNarrow(channel.streamId);
+      await prepareMessageNotSent(tester, narrow: channelNarrow);
+
+      await tester.enterText(topicInputFinder, 'topic before restoring');
+      check(state).controller.isA<StreamComposeBoxController>()
+        ..topic.text.equals('topic before restoring')
+        ..content.text.isNotNull().isEmpty();
+
+      await tester.tap(failedMessageFinder);
+      await tester.pump();
+      check(state).controller.isA<StreamComposeBoxController>()
+        ..topic.text.equals(topic)
+        ..content.text.equals(failedMessageContent)
+        ..contentFocusNode.hasFocus.isTrue();
+    });
+
+    Future<void> expectAndHandleDiscardForMessageNotSentConfirmation(
+      WidgetTester tester, {
+      required bool shouldContinue,
+    }) {
+      return expectAndHandleDiscardConfirmation(tester,
+        expectedMessage: 'When you restore an unsent message, the content that was previously in the compose box is discarded.',
+        shouldContinue: shouldContinue);
+    }
+
+    testWidgets('interrupting new-message compose: proceed through confirmation dialog', (tester) async {
+      await prepareMessageNotSent(tester, narrow: topicNarrow);
+      await enterContent(tester, 'composing something');
+
+      await tester.tap(failedMessageFinder);
+      await tester.pump();
+      check(state).controller.content.text.equals('composing something');
+
+      await expectAndHandleDiscardForMessageNotSentConfirmation(tester,
+        shouldContinue: true);
+      await tester.pump();
+      check(state).controller.content.text.equals(failedMessageContent);
+    });
+
+    testWidgets('interrupting new-message compose: cancel confirmation dialog', (tester) async {
+      await prepareMessageNotSent(tester, narrow: topicNarrow);
+      await enterContent(tester, 'composing something');
+
+      await tester.tap(failedMessageFinder);
+      await tester.pump();
+      check(state).controller.content.text.equals('composing something');
+
+      await expectAndHandleDiscardForMessageNotSentConfirmation(tester,
+        shouldContinue: false);
+      await tester.pump();
+      check(state).controller.content.text.equals('composing something');
+    });
+
+    testWidgets('interrupting message edit: proceed through confirmation dialog', (tester) async {
+      await prepareMessageNotSent(tester, narrow: topicNarrow);
+
+      final messageToEdit = eg.streamMessage(
+        sender: eg.selfUser, stream: channel, topic: topic,
+        content: 'message to edit');
+      await store.addMessage(messageToEdit);
+      await tester.pump();
+
+      await startEditInteractionFromActionSheet(tester, messageId: messageToEdit.id,
+        originalRawContent: 'message to edit',
+        delay: Duration.zero);
+      await tester.pump(const Duration(milliseconds: 250)); // bottom-sheet animation
+
+      await tester.tap(failedMessageFinder);
+      await tester.pump();
+      check(state).controller.content.text.equals('message to edit');
+
+      await expectAndHandleDiscardForMessageNotSentConfirmation(tester,
+        shouldContinue: true);
+      await tester.pump();
+      check(state).controller.content.text.equals(failedMessageContent);
+    });
+
+    testWidgets('interrupting message edit: cancel confirmation dialog', (tester) async {
+      await prepareMessageNotSent(tester, narrow: topicNarrow);
+
+      final messageToEdit = eg.streamMessage(
+        sender: eg.selfUser, stream: channel, topic: topic,
+        content: 'message to edit');
+      await store.addMessage(messageToEdit);
+      await tester.pump();
+
+      await startEditInteractionFromActionSheet(tester, messageId: messageToEdit.id,
+        originalRawContent: 'message to edit',
+        delay: Duration.zero);
+      await tester.pump(const Duration(milliseconds: 250)); // bottom-sheet animation
+
+      await tester.tap(failedMessageFinder);
+      await tester.pump();
+      check(state).controller.content.text.equals('message to edit');
+
+      await expectAndHandleDiscardForMessageNotSentConfirmation(tester,
+        shouldContinue: false);
+      await tester.pump();
+      check(state).controller.content.text.equals('message to edit');
+    });
+  });
+
   group('edit message', () {
     final channel = eg.stream();
     final topic = 'topic';
@@ -1470,7 +1702,10 @@ void main() {
 
     Message msgInNarrow(Narrow narrow) {
       final List<Message> messages = [message, dmMessage];
-      return messages.where((m) => narrow.containsMessage(m)).single;
+      return messages.where(
+        // TODO(#1667) will be null in a search narrow; remove `!`.
+        (m) => narrow.containsMessage(m)!
+      ).single;
     }
 
     int msgIdInNarrow(Narrow narrow) => msgInNarrow(narrow).id;

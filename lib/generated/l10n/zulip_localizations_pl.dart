@@ -21,6 +21,20 @@ class ZulipLocalizationsPl extends ZulipLocalizations {
   String get aboutPageTapToView => 'Dotknij, aby pokazać';
 
   @override
+  String get upgradeWelcomeDialogTitle => 'Witaj w nowej apce Zulip!';
+
+  @override
+  String get upgradeWelcomeDialogMessage =>
+      'Napotkasz na znane rozwiązania, które upakowaliśmy w szybszy i elegancki pakiet.';
+
+  @override
+  String get upgradeWelcomeDialogLinkText =>
+      'Sprawdź blog pod kątem obwieszczenia!';
+
+  @override
+  String get upgradeWelcomeDialogDismiss => 'Zaczynajmy';
+
+  @override
   String get chooseAccountPageTitle => 'Wybierz konto';
 
   @override
@@ -35,7 +49,7 @@ class ZulipLocalizationsPl extends ZulipLocalizations {
   }
 
   @override
-  String get tryAnotherAccountButton => 'Sprawdź inne konto';
+  String get tryAnotherAccountButton => 'Użyj innego konta';
 
   @override
   String get chooseAccountPageLogOutButton => 'Wyloguj';
@@ -45,7 +59,7 @@ class ZulipLocalizationsPl extends ZulipLocalizations {
 
   @override
   String get logOutConfirmationDialogMessage =>
-      'Aby użyć tego konta należy wypełnić URL organizacji oraz dane konta.';
+      'Aby użyć tego konta należy wskazać URL organizacji oraz dane konta.';
 
   @override
   String get logOutConfirmationDialogConfirmButton => 'Wyloguj';
@@ -119,13 +133,14 @@ class ZulipLocalizationsPl extends ZulipLocalizations {
       'Odtąd oznacz jako nieprzeczytane';
 
   @override
-  String get actionSheetOptionHideMutedMessage => 'Hide muted message again';
+  String get actionSheetOptionHideMutedMessage =>
+      'Ukryj ponownie wyciszone wiadomości';
 
   @override
   String get actionSheetOptionShare => 'Udostępnij';
 
   @override
-  String get actionSheetOptionQuoteAndReply => 'Odpowiedz cytując';
+  String get actionSheetOptionQuoteMessage => 'Cytuj wiadomość';
 
   @override
   String get actionSheetOptionStarMessage => 'Oznacz gwiazdką';
@@ -332,8 +347,8 @@ class ZulipLocalizationsPl extends ZulipLocalizations {
       'Miej na uwadze, że przechodząc do zmiany wiadomości wyczyścisz okno nowej wiadomości.';
 
   @override
-  String get discardDraftForMessageNotSentConfirmationDialogMessage =>
-      'When you restore a message not sent, the content that was previously in the compose box is discarded.';
+  String get discardDraftForOutboxConfirmationDialogMessage =>
+      'Przywracając wiadomość, która nie została wysłana, wyczyścisz zawartość kreatora nowej.';
 
   @override
   String get discardDraftConfirmationDialogConfirmButton => 'Odrzuć';
@@ -351,25 +366,23 @@ class ZulipLocalizationsPl extends ZulipLocalizations {
   String get composeBoxGenericContentHint => 'Wpisz wiadomość';
 
   @override
-  String get newDmSheetBackButtonLabel => 'Back';
+  String get newDmSheetComposeButtonLabel => 'Utwórz';
 
   @override
-  String get newDmSheetNextButtonLabel => 'Next';
+  String get newDmSheetScreenTitle => 'Nowa DM';
 
   @override
-  String get newDmSheetScreenTitle => 'New DM';
+  String get newDmFabButtonLabel => 'Nowa DM';
 
   @override
-  String get newDmFabButtonLabel => 'New DM';
+  String get newDmSheetSearchHintEmpty =>
+      'Dodaj jednego lub więcej użytkowników';
 
   @override
-  String get newDmSheetSearchHintEmpty => 'Add one or more users';
+  String get newDmSheetSearchHintSomeSelected => 'Dodaj kolejnego użytkownika…';
 
   @override
-  String get newDmSheetSearchHintSomeSelected => 'Add another user…';
-
-  @override
-  String get newDmSheetNoUsersFound => 'No users found';
+  String get newDmSheetNoUsersFound => 'Nie odnaleziono użytkowników';
 
   @override
   String composeBoxDmContentHint(String user) {
@@ -429,6 +442,12 @@ class ZulipLocalizationsPl extends ZulipLocalizations {
   String dmsWithOthersPageTitle(String others) {
     return 'DM z $others';
   }
+
+  @override
+  String get emptyMessageList => 'Póki co brak wiadomości.';
+
+  @override
+  String get emptyMessageListSearch => 'Brak wyników wyszukiwania.';
 
   @override
   String get messageListGroupYouWithYourself => 'Zapiski na własne konto';
@@ -646,13 +665,30 @@ class ZulipLocalizationsPl extends ZulipLocalizations {
   String get userRoleUnknown => 'Nieznany';
 
   @override
+  String get searchMessagesPageTitle => 'Szukaj';
+
+  @override
+  String get searchMessagesHintText => 'Szukaj';
+
+  @override
+  String get searchMessagesClearButtonTooltip => 'Wyczyść';
+
+  @override
   String get inboxPageTitle => 'Odebrane';
+
+  @override
+  String get inboxEmptyPlaceholder =>
+      'Obecnie brak nowych wiadomości. Skorzystaj z przycisków u dołu ekranu aby przejść do widoku mieszanego lub listy kanałów.';
 
   @override
   String get recentDmConversationsPageTitle => 'Wiadomości bezpośrednie';
 
   @override
   String get recentDmConversationsSectionHeader => 'Wiadomości bezpośrednie';
+
+  @override
+  String get recentDmConversationsEmptyPlaceholder =>
+      'Brak wiadomości w archiwum! Może warto rozpocząć dyskusję?';
 
   @override
   String get combinedFeedPageTitle => 'Mieszany widok';
@@ -665,6 +701,9 @@ class ZulipLocalizationsPl extends ZulipLocalizations {
 
   @override
   String get channelsPageTitle => 'Kanały';
+
+  @override
+  String get channelsEmptyPlaceholder => 'Nie śledzisz żadnego z kanałów.';
 
   @override
   String get mainMenuMyProfile => 'Mój profil';
@@ -691,9 +730,6 @@ class ZulipLocalizationsPl extends ZulipLocalizations {
 
   @override
   String get unpinnedSubscriptionsLabel => 'Odpięte';
-
-  @override
-  String get subscriptionListNoChannels => 'Nie odnaleziono kanałów';
 
   @override
   String get notifSelfUser => 'Ty';
@@ -748,7 +784,7 @@ class ZulipLocalizationsPl extends ZulipLocalizations {
   String get messageIsMovedLabel => 'PRZENIESIONO';
 
   @override
-  String get messageNotSentLabel => 'MESSAGE NOT SENT';
+  String get messageNotSentLabel => 'NIE WYSŁANO WIADOMOŚCI';
 
   @override
   String pollVoterNames(String voterNames) {
@@ -777,6 +813,45 @@ class ZulipLocalizationsPl extends ZulipLocalizations {
   String get pollWidgetOptionsMissing => 'Ta sonda nie ma opcji do wyboru.';
 
   @override
+  String get initialAnchorSettingTitle => 'Pokaż wiadomości w porządku';
+
+  @override
+  String get initialAnchorSettingDescription =>
+      'Możesz wybrać czy bardziej odpowiada Ci odczyt nieprzeczytanych lub najnowszych wiadomości.';
+
+  @override
+  String get initialAnchorSettingFirstUnreadAlways =>
+      'Pierwsza nieprzeczytana wiadomość';
+
+  @override
+  String get initialAnchorSettingFirstUnreadConversations =>
+      'Pierwsza nieprzeczytana wiadomość w widoku dyskusji, wszędzie indziej najnowsza wiadomość';
+
+  @override
+  String get initialAnchorSettingNewestAlways => 'Najnowsza wiadomość';
+
+  @override
+  String get markReadOnScrollSettingTitle =>
+      'Oznacz wiadomości jako przeczytane przy przwijaniu';
+
+  @override
+  String get markReadOnScrollSettingDescription =>
+      'Czy chcesz z automatu oznaczać wiadomości jako przeczytane przy przewijaniu?';
+
+  @override
+  String get markReadOnScrollSettingAlways => 'Zawsze';
+
+  @override
+  String get markReadOnScrollSettingNever => 'Nigdy';
+
+  @override
+  String get markReadOnScrollSettingConversations => 'Tylko w widoku dyskusji';
+
+  @override
+  String get markReadOnScrollSettingConversationsDescription =>
+      'Wiadomości zostaną z automatu oznaczone jako przeczytane tylko w pojedyczym wątku lub w wymianie wiadomości bezpośrednich.';
+
+  @override
   String get experimentalFeatureSettingsPageTitle => 'Funkcje eksperymentalne';
 
   @override
@@ -789,7 +864,7 @@ class ZulipLocalizationsPl extends ZulipLocalizations {
 
   @override
   String get errorNotificationOpenAccountNotFound =>
-      'The account associated with this notification could not be found.';
+      'Nie odnaleziono konta powiązanego z tym powiadomieniem.';
 
   @override
   String get errorReactionAddingFailedTitle => 'Dodanie reakcji bez powodzenia';
@@ -808,13 +883,10 @@ class ZulipLocalizationsPl extends ZulipLocalizations {
   String get noEarlierMessages => 'Brak historii';
 
   @override
-  String get mutedSender => 'Muted sender';
+  String get revealButtonLabel => 'Odsłoń wiadomość';
 
   @override
-  String get revealButtonLabel => 'Reveal message for muted sender';
-
-  @override
-  String get mutedUser => 'Muted user';
+  String get mutedUser => 'Wyciszony użytkownik';
 
   @override
   String get scrollToBottomTooltip => 'Przewiń do dołu';

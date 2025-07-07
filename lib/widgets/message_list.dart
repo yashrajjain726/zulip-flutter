@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_color_models/flutter_color_models.dart';
@@ -5,6 +7,8 @@ import 'package:intl/intl.dart' hide TextDirection;
 
 import '../api/model/model.dart';
 import '../generated/l10n/zulip_localizations.dart';
+import '../model/database.dart';
+import '../model/message.dart';
 import '../model/message_list.dart';
 import '../model/narrow.dart';
 import '../model/store.dart';
@@ -12,6 +16,7 @@ import '../model/typing_status.dart';
 import 'action_sheet.dart';
 import 'actions.dart';
 import 'app_bar.dart';
+import 'button.dart';
 import 'color.dart';
 import 'compose_box.dart';
 import 'content.dart';
@@ -138,15 +143,51 @@ abstract class MessageListPageState {
   ///
   /// This is null if [MessageList] has not mounted yet.
   MessageListView? get model;
+
+  /// This view's decision whether to mark read on scroll,
+  /// overriding [GlobalSettings.markReadOnScroll].
+  ///
+  /// For example, this is set to false after pressing
+  /// "Mark as unread from here" in the message action sheet.
+  bool? get markReadOnScroll;
+  set markReadOnScroll(bool? value);
+
+  /// For a message from a muted sender, reveal the sender and content,
+  /// replacing the "Muted user" placeholder.
+  void revealMutedMessage(int messageId);
+
+  /// For a message from a muted sender, hide the sender and content again
+  /// with the "Muted user" placeholder.
+  void unrevealMutedMessage(int messageId);
 }
 
 class MessageListPage extends StatefulWidget {
-  const MessageListPage({super.key, required this.initNarrow});
+  const MessageListPage({
+    super.key,
+    required this.initNarrow,
+    this.initAnchorMessageId,
+  });
 
   static AccountRoute<void> buildRoute({int? accountId, BuildContext? context,
-      required Narrow narrow}) {
+      required Narrow narrow, int? initAnchorMessageId}) {
     return MaterialAccountWidgetRoute(accountId: accountId, context: context,
-      page: MessageListPage(initNarrow: narrow));
+      page: MessageListPage(
+        initNarrow: narrow, initAnchorMessageId: initAnchorMessageId));
+  }
+
+  /// The "revealed" state of a message from a muted sender.
+  ///
+  /// This is updated via [MessageListPageState.revealMutedMessage]
+  /// and [MessageListPageState.unrevealMutedMessage].
+  ///
+  /// Uses the efficient [BuildContext.dependOnInheritedWidgetOfExactType],
+  /// so this is safe to call in a build method.
+  static RevealedMutedMessagesState revealedMutedMessagesOf(BuildContext context) {
+    final state =
+      context.dependOnInheritedWidgetOfExactType<_RevealedMutedMessagesProvider>()
+      ?.state;
+    assert(state != null, 'No MessageListPage ancestor');
+    return state!;
   }
 
   /// The [MessageListPageState] above this context in the tree.
@@ -162,9 +203,36 @@ class MessageListPage extends StatefulWidget {
   }
 
   final Narrow initNarrow;
+  final int? initAnchorMessageId; // TODO(#1564) highlight target upon load
 
   @override
   State<MessageListPage> createState() => _MessageListPageState();
+
+  /// In debug mode, controls whether mark-read-on-scroll is enabled,
+  /// overriding [GlobalSettings.markReadOnScroll]
+  /// and [MessageListPageState.markReadOnScroll].
+  ///
+  /// Outside of debug mode, this is always true and the setter has no effect.
+  static bool get debugEnableMarkReadOnScroll {
+    bool result = true;
+    assert(() {
+      result = _debugEnableMarkReadOnScroll;
+      return true;
+    }());
+    return result;
+  }
+  static bool _debugEnableMarkReadOnScroll = true;
+  static set debugEnableMarkReadOnScroll(bool value) {
+    assert(() {
+      _debugEnableMarkReadOnScroll = value;
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  static void debugReset() {
+    _debugEnableMarkReadOnScroll = true;
+  }
 }
 
 class _MessageListPageState extends State<MessageListPage> implements MessageListPageState {
@@ -180,6 +248,28 @@ class _MessageListPageState extends State<MessageListPage> implements MessageLis
   final GlobalKey<_MessageListState> _messageListKey = GlobalKey();
 
   @override
+  bool? get markReadOnScroll => _markReadOnScroll;
+  bool? _markReadOnScroll;
+  @override
+  set markReadOnScroll(bool? value) {
+    setState(() {
+      _markReadOnScroll = value;
+    });
+  }
+
+  final _revealedMutedMessages = RevealedMutedMessagesState();
+
+  @override
+  void revealMutedMessage(int messageId) {
+    _revealedMutedMessages._add(messageId);
+  }
+
+  @override
+  void unrevealMutedMessage(int messageId) {
+    _revealedMutedMessages._remove(messageId);
+  }
+
+  @override
   void initState() {
     super.initState();
     narrow = widget.initNarrow;
@@ -193,6 +283,79 @@ class _MessageListPageState extends State<MessageListPage> implements MessageLis
 
   @override
   Widget build(BuildContext context) {
+    final Anchor initAnchor;
+    if (narrow is KeywordSearchNarrow) {
+      initAnchor = AnchorCode.newest;
+    } else if (widget.initAnchorMessageId != null) {
+      initAnchor = NumericAnchor(widget.initAnchorMessageId!);
+    } else {
+      final globalSettings = GlobalStoreWidget.settingsOf(context);
+      final useFirstUnread = globalSettings.shouldVisitFirstUnread(narrow: narrow);
+      initAnchor = useFirstUnread ? AnchorCode.firstUnread : AnchorCode.newest;
+    }
+
+    Widget result = Scaffold(
+      appBar: _MessageListAppBar.build(context, narrow: narrow),
+      // TODO question for Vlad: for a stream view, should we set the Scaffold's
+      //   [backgroundColor] based on stream color, as in this frame:
+      //     https://www.figma.com/file/1JTNtYo9memgW7vV6d0ygq/Zulip-Mobile?node-id=132%3A9684&mode=dev
+      //   That's not obviously preferred over the default background that
+      //   we matched to the Figma in 21dbae120. See another frame, which uses that:
+      //     https://www.figma.com/file/1JTNtYo9memgW7vV6d0ygq/Zulip-Mobile?node-id=147%3A9088&mode=dev
+      body: Builder(
+        builder: (BuildContext context) {
+          return Column(
+          // Children are expected to take the full horizontal space
+          // and handle the horizontal device insets.
+          // The bottom inset should be handled by the last child only.
+          children: [
+            MediaQuery.removePadding(
+              // Scaffold knows about the app bar, and so has run this
+              // BuildContext, which is under `body`, through
+              // MediaQuery.removePadding with `removeTop: true`.
+              context: context,
+
+              // The compose box, when present, pads the bottom inset.
+              // TODO(#311) If we have a bottom nav, it will pad the bottom
+              //   inset, and this should always be true.
+              removeBottom: ComposeBox.hasComposeBox(narrow),
+
+              child: Expanded(
+                child: MessageList(
+                  key: _messageListKey,
+                  narrow: narrow,
+                  initAnchor: initAnchor,
+                  onNarrowChanged: _narrowChanged,
+                  markReadOnScroll: markReadOnScroll,
+                ))),
+            if (ComposeBox.hasComposeBox(narrow))
+              ComposeBox(key: _composeBoxKey, narrow: narrow)
+          ]);
+        }));
+
+    // Insert a PageRoot here (under MessageListPage),
+    // to provide a context that can be used for MessageListPage.ancestorOf.
+    result = PageRoot(child: result);
+
+    result = _RevealedMutedMessagesProvider(state: _revealedMutedMessages,
+      child: result);
+
+    return result;
+  }
+}
+
+// Conceptually this should be a widget class.  But it needs to be a
+// PreferredSizeWidget, with the `preferredSize` that the underlying AppBar
+// will have... and there's currently no good way to get that value short of
+// constructing the whole AppBar widget with all its properties.
+// So this has to be built eagerly by its parent's build method,
+// making it a build function rather than a widget.  Discussion:
+//   https://github.com/zulip/zulip-flutter/pull/1662#discussion_r2183471883
+// Still we can organize it on a class, with the name the widget would have.
+// TODO(upstream): AppBar should expose a bit more API so that it's possible
+//   to customize by composition in a reasonable way.
+abstract class _MessageListAppBar {
+  static AppBar build(BuildContext context, {required Narrow narrow}) {
     final store = PerAccountStoreWidget.of(context);
     final messageListTheme = MessageListTheme.of(context);
     final zulipLocalizations = ZulipLocalizations.of(context);
@@ -203,6 +366,7 @@ class _MessageListPageState extends State<MessageListPage> implements MessageLis
       case CombinedFeedNarrow():
       case MentionsNarrow():
       case StarredMessagesNarrow():
+      case KeywordSearchNarrow():
         appBarBackgroundColor = null; // i.e., inherit
 
       case ChannelNarrow(:final streamId):
@@ -226,6 +390,7 @@ class _MessageListPageState extends State<MessageListPage> implements MessageLis
       case CombinedFeedNarrow():
       case MentionsNarrow():
       case StarredMessagesNarrow():
+      case KeywordSearchNarrow():
       case DmNarrow():
         break;
       case ChannelNarrow(:final streamId):
@@ -240,51 +405,50 @@ class _MessageListPageState extends State<MessageListPage> implements MessageLis
         actions.add(_TopicListButton(streamId: streamId));
     }
 
-    // Insert a PageRoot here, to provide a context that can be used for
-    // MessageListPage.ancestorOf.
-    return PageRoot(child: Scaffold(
-      appBar: ZulipAppBar(
-        buildTitle: (willCenterTitle) =>
-          MessageListAppBarTitle(narrow: narrow, willCenterTitle: willCenterTitle),
-        actions: actions,
-        backgroundColor: appBarBackgroundColor,
-        shape: removeAppBarBottomBorder
-          ? const Border()
-          : null, // i.e., inherit
-      ),
-      // TODO question for Vlad: for a stream view, should we set the Scaffold's
-      //   [backgroundColor] based on stream color, as in this frame:
-      //     https://www.figma.com/file/1JTNtYo9memgW7vV6d0ygq/Zulip-Mobile?node-id=132%3A9684&mode=dev
-      //   That's not obviously preferred over the default background that
-      //   we matched to the Figma in 21dbae120. See another frame, which uses that:
-      //     https://www.figma.com/file/1JTNtYo9memgW7vV6d0ygq/Zulip-Mobile?node-id=147%3A9088&mode=dev
-      body: Builder(
-        builder: (BuildContext context) => Column(
-          // Children are expected to take the full horizontal space
-          // and handle the horizontal device insets.
-          // The bottom inset should be handled by the last child only.
-          children: [
-            MediaQuery.removePadding(
-              // Scaffold knows about the app bar, and so has run this
-              // BuildContext, which is under `body`, through
-              // MediaQuery.removePadding with `removeTop: true`.
-              context: context,
-
-              // The compose box, when present, pads the bottom inset.
-              // TODO(#311) If we have a bottom nav, it will pad the bottom
-              //   inset, and this should always be true.
-              removeBottom: ComposeBox.hasComposeBox(narrow),
-
-              child: Expanded(
-                child: MessageList(
-                  key: _messageListKey,
-                  narrow: narrow,
-                  onNarrowChanged: _narrowChanged,
-                ))),
-            if (ComposeBox.hasComposeBox(narrow))
-              ComposeBox(key: _composeBoxKey, narrow: narrow)
-          ]))));
+    return ZulipAppBar(
+      centerTitle: switch (narrow) {
+        CombinedFeedNarrow() || ChannelNarrow()
+            || TopicNarrow() || DmNarrow()
+            || MentionsNarrow() || StarredMessagesNarrow()
+          => null,
+        KeywordSearchNarrow()
+          => false,
+      },
+      buildTitle: (willCenterTitle) =>
+        MessageListAppBarTitle(narrow: narrow, willCenterTitle: willCenterTitle),
+      actions: actions,
+      backgroundColor: appBarBackgroundColor,
+      shape: removeAppBarBottomBorder
+        ? const Border()
+        : null, // i.e., inherit
+    );
   }
+}
+
+class RevealedMutedMessagesState extends ChangeNotifier {
+  final Set<int> _revealedMessages = {};
+
+  bool isMutedMessageRevealed(int messageId) =>
+    _revealedMessages.contains(messageId);
+
+  void _add(int messageId) {
+    _revealedMessages.add(messageId);
+    notifyListeners();
+  }
+
+  void _remove(int messageId) {
+    _revealedMessages.remove(messageId);
+    notifyListeners();
+  }
+}
+
+class _RevealedMutedMessagesProvider extends InheritedNotifier<RevealedMutedMessagesState> {
+  const _RevealedMutedMessagesProvider({
+    required RevealedMutedMessagesState state,
+    required super.child,
+  }) : super(notifier: state);
+
+  RevealedMutedMessagesState get state => notifier!;
 }
 
 class _TopicListButton extends StatelessWidget {
@@ -435,7 +599,7 @@ class MessageListAppBarTitle extends StatelessWidget {
                 // either still fetching messages (and the user can reopen the
                 // sheet after that finishes) or there aren't any messages to
                 // act on anyway.
-                assert(someMessage == null || narrow.containsMessage(someMessage));
+                assert(someMessage == null || narrow.containsMessage(someMessage)!);
                 showTopicActionSheet(context,
                   channelId: streamId,
                   topic: topic,
@@ -455,9 +619,101 @@ class MessageListAppBarTitle extends StatelessWidget {
           return Text(
             zulipLocalizations.dmsWithOthersPageTitle(names.join(', ')));
         }
+
+      case KeywordSearchNarrow():
+        assert(!willCenterTitle);
+        return _SearchBar(onSubmitted: (narrow) {
+          MessageListPage.ancestorOf(context).model!.renarrowAndFetch(narrow);
+        });
     }
   }
 }
+
+class _SearchBar extends StatefulWidget {
+  const _SearchBar({required this.onSubmitted});
+
+  final void Function(KeywordSearchNarrow) onSubmitted;
+
+  @override
+  State<_SearchBar> createState() => _SearchBarState();
+}
+
+class _SearchBarState extends State<_SearchBar> {
+  late TextEditingController _controller;
+
+  static KeywordSearchNarrow _valueToNarrow(String value) =>
+    KeywordSearchNarrow(value.trim());
+
+  @override
+  void initState() {
+    _controller = TextEditingController();
+    super.initState();
+  }
+
+  void _handleSubmitted(String value) {
+    widget.onSubmitted(_valueToNarrow(value));
+  }
+
+  void _clearInput() {
+    _controller.clear();
+    _handleSubmitted('');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final designVariables = DesignVariables.of(context);
+    final zulipLocalizations = ZulipLocalizations.of(context);
+
+    return TextField(
+      controller: _controller,
+      autocorrect: false,
+
+      // Servers as of 2025-07 seem to require straight quotes for the
+      // "exact match"- style query. (N.B. the doc says this param is iOS-only.)
+      smartQuotesType: SmartQuotesType.disabled,
+
+      autofocus: true,
+      onSubmitted: _handleSubmitted,
+      cursorColor: designVariables.textInput,
+      style: TextStyle(
+        color: designVariables.textInput,
+        fontSize: 19,
+        height: 28 / 19,
+      ),
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: zulipLocalizations.searchMessagesHintText,
+        hintStyle: TextStyle(color: designVariables.labelSearchPrompt),
+        prefixIcon: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(8, 8, 0, 8),
+          child: Icon(size: 24, ZulipIcons.search)),
+        prefixIconColor: designVariables.labelSearchPrompt,
+        prefixIconConstraints: BoxConstraints(),
+        suffixIcon: IconButton(
+          tooltip: zulipLocalizations.searchMessagesClearButtonTooltip,
+          onPressed: _clearInput,
+          // This and `suffixIconConstraints` allow 42px square touch target.
+          visualDensity: VisualDensity.compact,
+          highlightColor: Colors.transparent,
+          style: ButtonStyle(
+            padding: WidgetStatePropertyAll(EdgeInsets.zero),
+            splashFactory: NoSplash.splashFactory,
+          ),
+          iconSize: 24,
+          icon: Icon(ZulipIcons.remove)),
+        suffixIconColor: designVariables.textMessageMuted,
+        suffixIconConstraints: BoxConstraints(minWidth: 42, minHeight: 42),
+        contentPadding: const EdgeInsetsDirectional.symmetric(vertical: 7),
+        filled: true,
+        fillColor: designVariables.bgSearchInput,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide.none),
+      ));
+  }
+}
+
 
 /// The approximate height of a short message in the message list.
 const _kShortMessageHeight = 80;
@@ -479,16 +735,26 @@ const kFetchMessagesBufferPixels = (kMessageListFetchBatchSize / 2) * _kShortMes
 /// When there is no [ComposeBox], also takes responsibility
 /// for dealing with the bottom inset.
 class MessageList extends StatefulWidget {
-  const MessageList({super.key, required this.narrow, required this.onNarrowChanged});
+  const MessageList({
+    super.key,
+    required this.narrow,
+    required this.initAnchor,
+    required this.onNarrowChanged,
+    required this.markReadOnScroll,
+  });
 
   final Narrow narrow;
+  final Anchor initAnchor;
   final void Function(Narrow newNarrow) onNarrowChanged;
+  final bool? markReadOnScroll;
 
   @override
   State<StatefulWidget> createState() => _MessageListState();
 }
 
 class _MessageListState extends State<MessageList> with PerAccountStoreAwareStateMixin<MessageList> {
+  final GlobalKey _scrollViewKey = GlobalKey();
+
   MessageListView get model => _model!;
   MessageListView? _model;
 
@@ -504,8 +770,9 @@ class _MessageListState extends State<MessageList> with PerAccountStoreAwareStat
 
   @override
   void onNewStore() { // TODO(#464) try to keep using old model until new one gets messages
+    final anchor = _model == null ? widget.initAnchor : _model!.anchor;
     _model?.dispose();
-    _initModel(PerAccountStoreWidget.of(context));
+    _initModel(PerAccountStoreWidget.of(context), anchor);
   }
 
   @override
@@ -516,13 +783,27 @@ class _MessageListState extends State<MessageList> with PerAccountStoreAwareStat
     super.dispose();
   }
 
-  void _initModel(PerAccountStore store) {
-    _model = MessageListView.init(store: store, narrow: widget.narrow);
+  void _initModel(PerAccountStore store, Anchor anchor) {
+    _model = MessageListView.init(store: store,
+      narrow: widget.narrow, anchor: anchor);
     model.addListener(_modelChanged);
     model.fetchInitial();
   }
 
+  bool _prevFetched = false;
+
   void _modelChanged() {
+    // When you're scrolling quickly, our mark-as-read requests include the
+    // messages *between* _messagesRecentlyInViewport and the messages currently
+    // in view, so that messages don't get left out because you were scrolling
+    // so fast that they never rendered onscreen.
+    //
+    // Here, the onscreen messages might be totally different,
+    // and not because of scrolling; e.g. because the narrow changed.
+    // Avoid "filling in" a mark-as-read request with totally wrong messages,
+    // by forgetting the old range.
+    _messagesRecentlyInViewport = null;
+
     if (model.narrow != widget.narrow) {
       // Either:
       // - A message move event occurred, where propagate mode is
@@ -531,13 +812,136 @@ class _MessageListState extends State<MessageList> with PerAccountStoreAwareStat
       //   redirected us to the new location of the operand message ID.
       widget.onNarrowChanged(model.narrow);
     }
+    // TODO when model reset, reset scroll
     setState(() {
       // The actual state lives in the [MessageListView] model.
       // This method was called because that just changed.
     });
+
+    if (!_prevFetched && model.fetched && model.messages.isEmpty) {
+      // If the fetch came up empty, there's nothing to read,
+      // so opening the keyboard won't be bothersome and could be helpful.
+      // It's definitely helpful if we got here from the new-DM page.
+      MessageListPage.ancestorOf(context)
+        .composeBoxState?.controller.requestFocusIfUnfocused();
+    }
+    _prevFetched = model.fetched;
+  }
+
+  /// Find the range of message IDs on screen, as a (first, last) tuple,
+  /// or null if no messages are onscreen.
+  ///
+  /// A message is considered onscreen if its bottom edge is in the viewport.
+  ///
+  /// Ignores outbox messages.
+  (int, int)? _findMessagesInViewport() {
+    final scrollViewElement = _scrollViewKey.currentContext as Element;
+    final scrollViewRenderObject = scrollViewElement.renderObject as RenderBox;
+
+    int? first;
+    int? last;
+    void visit(Element element) {
+      final widget = element.widget;
+      switch (widget) {
+        case RecipientHeader():
+        case DateSeparator():
+        case MarkAsReadWidget():
+          // MessageItems won't be descendants of these
+          return;
+
+        case MessageItem(item: MessageListOutboxMessageItem()):
+          return; // ignore outbox
+
+        case MessageItem(item: MessageListMessageItem(:final message)):
+          final isInViewport = _isMessageItemInViewport(
+            element, scrollViewRenderObject: scrollViewRenderObject);
+          if (isInViewport) {
+            if (first == null) {
+              assert(last == null);
+              first = message.id;
+              last = message.id;
+              return;
+            }
+            if (message.id < first!) {
+              first = message.id;
+            }
+            if (last! < message.id) {
+              last = message.id;
+            }
+          }
+          return; // no need to look for more MessageItems inside this one
+
+        default:
+          element.visitChildElements(visit);
+      }
+    }
+    scrollViewElement.visitChildElements(visit);
+
+    if (first == null) {
+      assert(last == null);
+      return null;
+    }
+    return (first!, last!);
+  }
+
+  bool _isMessageItemInViewport(
+    Element element, {
+    required RenderBox scrollViewRenderObject,
+  }) {
+    assert(element.widget is MessageItem
+      && (element.widget as MessageItem).item is MessageListMessageItem);
+    final viewportHeight = scrollViewRenderObject.size.height;
+
+    final messageRenderObject = element.renderObject as RenderBox;
+
+    final messageBottom = messageRenderObject.localToGlobal(
+      Offset(0, messageRenderObject.size.height),
+      ancestor: scrollViewRenderObject).dy;
+
+    return 0 < messageBottom && messageBottom <= viewportHeight;
+  }
+
+  (int, int)? _messagesRecentlyInViewport;
+
+  void _markReadFromScroll() {
+    final currentRange = _findMessagesInViewport();
+    if (currentRange == null) return;
+
+    final (currentFirst, currentLast) = currentRange;
+    final (prevFirst, prevLast) = _messagesRecentlyInViewport ?? (null, null);
+
+    // ("Hull" as in the "convex hull" around the old and new ranges.)
+    final firstOfHull = switch ((prevFirst, currentFirst)) {
+      (int previous, int current) => previous < current ? previous : current,
+      (           _, int current) => current,
+    };
+
+    final lastOfHull = switch ((prevLast, currentLast)) {
+      (int previous, int current) => previous > current ? previous : current,
+      (           _, int current) => current,
+    };
+
+    final sublist = model.getMessagesRange(firstOfHull, lastOfHull);
+    if (sublist == null) {
+      _messagesRecentlyInViewport = null;
+      return;
+    }
+    model.store.markReadFromScroll(sublist.map((message) => message.id));
+
+    _messagesRecentlyInViewport = currentRange;
+  }
+
+  bool _effectiveMarkReadOnScroll() {
+    if (!MessageListPage.debugEnableMarkReadOnScroll) return false;
+    return widget.markReadOnScroll
+      ?? GlobalStoreWidget.settingsOf(context).markReadOnScrollForNarrow(widget.narrow);
   }
 
   void _handleScrollMetrics(ScrollMetrics scrollMetrics) {
+    if (_effectiveMarkReadOnScroll()) {
+      _markReadFromScroll();
+    }
+
     if (scrollMetrics.extentAfter == 0) {
       _scrollToBottomVisible.value = false;
     } else {
@@ -552,6 +956,9 @@ class _MessageListState extends State<MessageList> with PerAccountStoreAwareStat
       //   The cause seems to be that this gets called again with maxScrollExtent
       //   still not yet updated to account for the newly-added messages.
       model.fetchOlder();
+    }
+    if (scrollMetrics.extentAfter < kFetchMessagesBufferPixels) {
+      model.fetchNewer();
     }
   }
 
@@ -572,7 +979,20 @@ class _MessageListState extends State<MessageList> with PerAccountStoreAwareStat
 
   @override
   Widget build(BuildContext context) {
+    final zulipLocalizations = ZulipLocalizations.of(context);
+
     if (!model.fetched) return const Center(child: CircularProgressIndicator());
+
+    if (model.items.isEmpty && model.haveNewest && model.haveOldest) {
+      final String message;
+      if (widget.narrow is KeywordSearchNarrow) {
+        message = zulipLocalizations.emptyMessageListSearch;
+      } else {
+        message = zulipLocalizations.emptyMessageList;
+      }
+
+      return PageBodyEmptyContentPlaceholder(message: message);
+    }
 
     // Pad the left and right insets, for small devices in landscape.
     return SafeArea(
@@ -603,6 +1023,7 @@ class _MessageListState extends State<MessageList> with PerAccountStoreAwareStat
                   //   MessageList's dartdoc.
                   child: SafeArea(
                     child: ScrollToBottomButton(
+                      model: model,
                       scrollController: scrollController,
                       visible: _scrollToBottomVisible))),
               ])))));
@@ -686,15 +1107,9 @@ class _MessageListState extends State<MessageList> with PerAccountStoreAwareStat
           if (childIndex < 0) return null;
           return childIndex;
         },
-        childCount: bottomItems + 3,
+        childCount: bottomItems + 1,
         (context, childIndex) {
-          // To reinforce that the end of the feed has been reached:
-          //   https://chat.zulip.org/#narrow/stream/243-mobile-team/topic/flutter.3A.20Mark-as-read/near/1680603
-          if (childIndex == bottomItems + 2) return const SizedBox(height: 36);
-
-          if (childIndex == bottomItems + 1) return MarkAsReadWidget(narrow: widget.narrow);
-
-          if (childIndex == bottomItems) return TypingStatusWidget(narrow: widget.narrow);
+          if (childIndex == bottomItems) return _buildEndCap();
 
           final itemIndex = topItems + childIndex;
           final data = model.items[itemIndex];
@@ -708,6 +1123,8 @@ class _MessageListState extends State<MessageList> with PerAccountStoreAwareStat
     }
 
     return MessageListScrollView(
+      key: _scrollViewKey,
+
       // TODO: Offer `ScrollViewKeyboardDismissBehavior.interactive` (or
       //   similar) if that is ever offered:
       //     https://github.com/flutter/flutter/issues/57609#issuecomment-1355340849
@@ -731,16 +1148,34 @@ class _MessageListState extends State<MessageList> with PerAccountStoreAwareStat
   }
 
   Widget _buildStartCap() {
-    // These assertions are invariants of [MessageListView].
-    assert(!(model.fetchingOlder && model.fetchOlderCoolingDown));
-    final effectiveFetchingOlder =
-      model.fetchingOlder || model.fetchOlderCoolingDown;
-    assert(!(model.haveOldest && effectiveFetchingOlder));
-    return switch ((effectiveFetchingOlder, model.haveOldest)) {
-      (true, _) => const _MessageListLoadingMore(),
-      (_, true) => const _MessageListHistoryStart(),
-      (_,    _) => const SizedBox.shrink(),
-    };
+    // If we're done fetching older messages, show that.
+    // Else if we're busy with fetching, then show a loading indicator.
+    //
+    // This applies even if the fetch is over, but failed, and we're still
+    // in backoff from it; and even if the fetch is/was for the other direction.
+    // The loading indicator really means "busy, working on it"; and that's the
+    // right summary even if the fetch is internally queued behind other work.
+    return model.haveOldest ? const _MessageListHistoryStart()
+      : model.busyFetchingMore ? const _MessageListLoadingMore()
+      : const SizedBox.shrink();
+  }
+
+  Widget _buildEndCap() {
+    if (model.haveNewest) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        TypingStatusWidget(narrow: widget.narrow),
+        // TODO perhaps offer mark-as-read even when not done fetching?
+        MarkAsReadWidget(narrow: widget.narrow),
+        // To reinforce that the end of the feed has been reached:
+        //   https://chat.zulip.org/#narrow/stream/243-mobile-team/topic/flutter.3A.20Mark-as-read/near/1680603
+        const SizedBox(height: 36),
+      ]);
+    } else if (model.busyFetchingMore) {
+      // See [_buildStartCap] for why this condition shows a loading indicator.
+      return const _MessageListLoadingMore();
+    } else {
+      return SizedBox.shrink();
+    }
   }
 
   Widget _buildItem(MessageListItem data) {
@@ -758,6 +1193,13 @@ class _MessageListState extends State<MessageList> with PerAccountStoreAwareStat
         final header = RecipientHeader(message: data.message, narrow: widget.narrow);
         return MessageItem(
           key: ValueKey(data.message.id),
+          narrow: widget.narrow,
+          header: header,
+          item: data);
+      case MessageListOutboxMessageItem():
+        final header = RecipientHeader(message: data.message, narrow: widget.narrow);
+        return MessageItem(
+          narrow: widget.narrow,
           header: header,
           item: data);
     }
@@ -790,13 +1232,40 @@ class _MessageListLoadingMore extends StatelessWidget {
 }
 
 class ScrollToBottomButton extends StatelessWidget {
-  const ScrollToBottomButton({super.key, required this.scrollController, required this.visible});
+  const ScrollToBottomButton({
+    super.key,
+    required this.model,
+    required this.scrollController,
+    required this.visible,
+  });
 
-  final ValueNotifier<bool> visible;
+  final MessageListView model;
   final MessageListScrollController scrollController;
+  final ValueNotifier<bool> visible;
 
   void _scrollToBottom() {
-    scrollController.position.scrollToEnd();
+    if (model.haveNewest) {
+      // Scrolling smoothly from here to the bottom won't require any requests
+      // to the server.
+      // It also probably isn't *that* far away: the user must have scrolled
+      // here from there (or from near enough that a fetch reached there),
+      // so scrolling back there -- at top speed -- shouldn't take too long.
+      // Go for it.
+      scrollController.position.scrollToEnd();
+    } else {
+      // This message list doesn't have the messages for the bottom of history.
+      // There could be quite a lot of history between here and there --
+      // for example, at first unread in the combined feed or a busy channel,
+      // for a user who has some old unreads going back months and years.
+      // In that case trying to scroll smoothly to the bottom is hopeless.
+      //
+      // Given that there were at least 100 messages between this message list's
+      // initial anchor and the end of history (or else `fetchInitial` would
+      // have reached the end at the outset), that situation is very likely.
+      // Even if the end is close by, it's at least one fetch away.
+      // Instead of scrolling, jump to the end, which is always just one fetch.
+      model.jumpToEnd();
+    }
   }
 
   @override
@@ -902,15 +1371,15 @@ class _MarkAsReadWidgetState extends State<MarkAsReadWidget> {
     final zulipLocalizations = ZulipLocalizations.of(context);
     final store = PerAccountStoreWidget.of(context);
     final unreadCount = store.unreads.countInNarrow(widget.narrow);
-    final areMessagesRead = unreadCount == 0;
+    final shouldHide = unreadCount == 0;
 
     final messageListTheme = MessageListTheme.of(context);
 
     return IgnorePointer(
-      ignoring: areMessagesRead,
+      ignoring: shouldHide,
       child: MarkAsReadAnimation(
         loading: _loading,
-        hidden: areMessagesRead,
+        hidden: shouldHide,
         child: SizedBox(width: double.infinity,
           // Design referenced from:
           //   https://www.figma.com/file/1JTNtYo9memgW7vV6d0ygq/Zulip-Mobile?type=design&node-id=132-9684&mode=design&t=jJwHzloKJ0TMOG4M-0
@@ -1054,10 +1523,12 @@ class DateSeparator extends StatelessWidget {
 class MessageItem extends StatelessWidget {
   const MessageItem({
     super.key,
+    required this.narrow,
     required this.item,
     required this.header,
   });
 
+  final Narrow narrow;
   final MessageListMessageBaseItem item;
   final Widget header;
 
@@ -1070,7 +1541,10 @@ class MessageItem extends StatelessWidget {
       color: designVariables.bgMessageRegular,
       child: Column(children: [
         switch (item) {
-          MessageListMessageItem() => MessageWithPossibleSender(item: item),
+          MessageListMessageItem() => MessageWithPossibleSender(
+            narrow: narrow,
+            item: item),
+          MessageListOutboxMessageItem() => OutboxMessageWithPossibleSender(item: item),
         },
         // TODO refine this padding; discussion:
         //   https://github.com/zulip/zulip-flutter/pull/1453#discussion_r2106526985
@@ -1137,6 +1611,7 @@ class StreamMessageRecipientHeader extends StatelessWidget {
       case CombinedFeedNarrow():
       case MentionsNarrow():
       case StarredMessagesNarrow():
+      case KeywordSearchNarrow():
         return true;
 
       case ChannelNarrow():
@@ -1303,7 +1778,7 @@ class DmRecipientHeader extends StatelessWidget {
                 child: Icon(
                   color: designVariables.title,
                   size: 16,
-                  ZulipIcons.user)),
+                  ZulipIcons.two_person)),
               Expanded(
                 child: Text(title,
                   style: recipientHeaderTextStyle(context),
@@ -1419,6 +1894,14 @@ class _SenderRow extends StatelessWidget {
   final MessageBase message;
   final bool showTimestamp;
 
+  bool _showAsMuted(BuildContext context, PerAccountStore store) {
+    final message = this.message;
+    if (!store.isUserMuted(message.senderId)) return false;
+    if (message is! Message) return false; // i.e., if an outbox message
+    return !MessageListPage.revealedMutedMessagesOf(context)
+      .isMutedMessageRevealed(message.id);
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = PerAccountStoreWidget.of(context);
@@ -1428,31 +1911,40 @@ class _SenderRow extends StatelessWidget {
     final sender = store.getUser(message.senderId);
     final time = _kMessageTimestampFormat
       .format(DateTime.fromMillisecondsSinceEpoch(1000 * message.timestamp));
+
+    final showAsMuted = _showAsMuted(context, store);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.baseline,
         textBaseline: localizedTextBaseline(context),
         children: [
           Flexible(
             child: GestureDetector(
-              onTap: () => Navigator.push(context,
+              onTap: () => showAsMuted ? null : Navigator.push(context,
                 ProfilePage.buildRoute(context: context,
                   userId: message.senderId)),
               child: Row(
                 children: [
-                  Avatar(size: 32, borderRadius: 3,
+                  Avatar(
+                    size: 32,
+                    borderRadius: 3,
+                    showPresence: false,
+                    replaceIfMuted: showAsMuted,
                     userId: message.senderId),
                   const SizedBox(width: 8),
                   Flexible(
                     child: Text(message is Message
-                        ? store.senderDisplayName(message as Message)
+                        ? store.senderDisplayName(message as Message,
+                            replaceIfMuted: showAsMuted)
                         : store.userDisplayName(message.senderId),
                       style: TextStyle(
                         fontSize: 18,
                         height: (22 / 18),
-                        color: designVariables.title,
+                        color: showAsMuted
+                          ? designVariables.title.withFadedAlpha(0.5)
+                          : designVariables.title,
                       ).merge(weightVariableTextStyle(context, wght: 600)),
                       overflow: TextOverflow.ellipsis)),
                   if (sender?.isBot ?? false) ...[
@@ -1483,8 +1975,13 @@ class _SenderRow extends StatelessWidget {
 //   - https://github.com/zulip/zulip-mobile/issues/5511
 //   - https://www.figma.com/file/1JTNtYo9memgW7vV6d0ygq/Zulip-Mobile?node-id=538%3A20849&mode=dev
 class MessageWithPossibleSender extends StatelessWidget {
-  const MessageWithPossibleSender({super.key, required this.item});
+  const MessageWithPossibleSender({
+    super.key,
+    required this.narrow,
+    required this.item,
+  });
 
+  final Narrow narrow;
   final MessageListMessageItem item;
 
   @override
@@ -1533,9 +2030,32 @@ class MessageWithPossibleSender extends StatelessWidget {
       }
     }
 
+    final tapOpensConversation = switch (narrow) {
+      CombinedFeedNarrow()
+        || ChannelNarrow()
+        || TopicNarrow()
+        || DmNarrow() => false,
+      MentionsNarrow()
+        || StarredMessagesNarrow()
+        || KeywordSearchNarrow() => true,
+    };
+
+    final showAsMuted = store.isUserMuted(message.senderId)
+      && !MessageListPage.revealedMutedMessagesOf(context)
+                         .isMutedMessageRevealed(message.id);
+
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onLongPress: () => showMessageActionSheet(context: context, message: message),
+      onTap: tapOpensConversation
+        ? () => unawaited(Navigator.push(context,
+            MessageListPage.buildRoute(context: context,
+              narrow: SendableNarrow.ofMessage(message, selfUserId: store.selfUserId),
+              // TODO(#1655) "this view does not mark messages as read on scroll"
+              initAnchorMessageId: message.id)))
+        : null,
+      onLongPress: showAsMuted
+        ? null // TODO write a test for this
+        : () => showMessageActionSheet(context: context, message: message),
       child: Padding(
         padding: const EdgeInsets.only(top: 4),
         child: Column(children: [
@@ -1546,28 +2066,40 @@ class MessageWithPossibleSender extends StatelessWidget {
             textBaseline: localizedTextBaseline(context),
             children: [
               const SizedBox(width: 16),
-              Expanded(child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  content,
-                  if ((message.reactions?.total ?? 0) > 0)
-                    ReactionChipsList(messageId: message.id, reactions: message.reactions!),
-                  if (editMessageErrorStatus != null)
-                    _EditMessageStatusRow(messageId: message.id, status: editMessageErrorStatus)
-                  else if (editStateText != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(editStateText,
-                        textAlign: TextAlign.end,
-                        style: TextStyle(
-                          color: designVariables.labelEdited,
-                          fontSize: 12,
-                          height: (12 / 12),
-                          letterSpacing: proportionalLetterSpacing(context,
-                            0.05, baseFontSize: 12))))
-                  else
-                    Padding(padding: const EdgeInsets.only(bottom: 4))
-                ])),
+              Expanded(child: showAsMuted
+                ? Align(
+                    alignment: AlignmentDirectional.topStart,
+                    child: ZulipWebUiKitButton(
+                      label: zulipLocalizations.revealButtonLabel,
+                      icon: ZulipIcons.eye,
+                      size: ZulipWebUiKitButtonSize.small,
+                      intent: ZulipWebUiKitButtonIntent.neutral,
+                      attention: ZulipWebUiKitButtonAttention.minimal,
+                      onPressed: () {
+                        MessageListPage.ancestorOf(context).revealMutedMessage(message.id);
+                      }))
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      content,
+                      if ((message.reactions?.total ?? 0) > 0)
+                        ReactionChipsList(messageId: message.id, reactions: message.reactions!),
+                      if (editMessageErrorStatus != null)
+                        _EditMessageStatusRow(messageId: message.id, status: editMessageErrorStatus)
+                      else if (editStateText != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(editStateText,
+                            textAlign: TextAlign.end,
+                            style: TextStyle(
+                              color: designVariables.labelEdited,
+                              fontSize: 12,
+                              height: (12 / 12),
+                              letterSpacing: proportionalLetterSpacing(context,
+                                0.05, baseFontSize: 12))))
+                      else
+                        Padding(padding: const EdgeInsets.only(bottom: 4))
+                    ])),
               SizedBox(width: 16,
                 child: star),
             ]),
@@ -1647,6 +2179,128 @@ class _RestoreEditMessageGestureDetector extends StatelessWidget {
         // TODO(#1518) allow restore-edit-message from any message-list page
         if (composeBoxState == null) return;
         composeBoxState.startEditInteraction(messageId);
+      },
+      child: child);
+  }
+}
+
+/// A "local echo" placeholder for a Zulip message to be sent by the self-user.
+///
+/// See also [OutboxMessage].
+class OutboxMessageWithPossibleSender extends StatelessWidget {
+  const OutboxMessageWithPossibleSender({super.key, required this.item});
+
+  final MessageListOutboxMessageItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final message = item.message;
+    final localMessageId = message.localMessageId;
+
+    // This is adapted from [MessageContent].
+    // TODO(#576): Offer InheritedMessage ancestor once we are ready
+    //   to support local echoing images and lightbox.
+    Widget content = DefaultTextStyle(
+      style: ContentTheme.of(context).textStylePlainParagraph,
+      child: BlockContentList(nodes: item.content.nodes));
+
+    switch (message.state) {
+      case OutboxMessageState.hidden:
+        throw StateError('Hidden OutboxMessage messages should not appear in message lists');
+      case OutboxMessageState.waiting:
+        break;
+      case OutboxMessageState.failed:
+      case OutboxMessageState.waitPeriodExpired:
+        // TODO(#576): When we support rendered-content local echo,
+        //   use IgnorePointer along with this faded appearance,
+        //   like we do for the failed-message-edit state
+        content = _RestoreOutboxMessageGestureDetector(
+          localMessageId: localMessageId,
+          child: Opacity(opacity: 0.6, child: content));
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(children: [
+        if (item.showSender)
+          _SenderRow(message: message, showTimestamp: false),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              content,
+              _OutboxMessageStatusRow(
+                localMessageId: localMessageId, outboxMessageState: message.state),
+            ])),
+      ]));
+  }
+}
+
+class _OutboxMessageStatusRow extends StatelessWidget {
+  const _OutboxMessageStatusRow({
+    required this.localMessageId,
+    required this.outboxMessageState,
+  });
+
+  final int localMessageId;
+  final OutboxMessageState outboxMessageState;
+
+  @override
+  Widget build(BuildContext context) {
+    switch (outboxMessageState) {
+      case OutboxMessageState.hidden:
+        assert(false,
+          'Hidden OutboxMessage messages should not appear in message lists');
+        return SizedBox.shrink();
+
+      case OutboxMessageState.waiting:
+        final designVariables = DesignVariables.of(context);
+        return Padding(
+          padding: const EdgeInsetsGeometry.only(bottom: 2),
+          child: LinearProgressIndicator(
+            minHeight: 2,
+            color: designVariables.foreground.withFadedAlpha(0.5),
+            backgroundColor: designVariables.foreground.withFadedAlpha(0.2)));
+
+      case OutboxMessageState.failed:
+      case OutboxMessageState.waitPeriodExpired:
+        final designVariables = DesignVariables.of(context);
+        final zulipLocalizations = ZulipLocalizations.of(context);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: _RestoreOutboxMessageGestureDetector(
+            localMessageId: localMessageId,
+            child: Text(
+              zulipLocalizations.messageNotSentLabel,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                color: designVariables.btnLabelAttLowIntDanger,
+                fontSize: 12,
+                height: 12 / 12,
+                letterSpacing: proportionalLetterSpacing(
+                  context, 0.05, baseFontSize: 12)))));
+    }
+  }
+}
+
+class _RestoreOutboxMessageGestureDetector extends StatelessWidget {
+  const _RestoreOutboxMessageGestureDetector({
+    required this.localMessageId,
+    required this.child,
+  });
+
+  final int localMessageId;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        final composeBoxState = MessageListPage.ancestorOf(context).composeBoxState;
+        // TODO(#1518) allow restore-outbox-message from any message-list page
+        if (composeBoxState == null) return;
+        composeBoxState.restoreMessageNotSent(localMessageId);
       },
       child: child);
   }

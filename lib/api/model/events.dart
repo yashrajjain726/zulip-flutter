@@ -62,6 +62,7 @@ sealed class Event {
         }
       // case 'muted_topics': … // TODO(#422) we ignore this feature on older servers
       case 'user_topic': return UserTopicEvent.fromJson(json);
+      case 'muted_users': return MutedUsersEvent.fromJson(json);
       case 'message': return MessageEvent.fromJson(json);
       case 'update_message': return UpdateMessageEvent.fromJson(json);
       case 'delete_message': return DeleteMessageEvent.fromJson(json);
@@ -73,6 +74,7 @@ sealed class Event {
         }
       case 'submessage': return SubmessageEvent.fromJson(json);
       case 'typing': return TypingEvent.fromJson(json);
+      case 'presence': return PresenceEvent.fromJson(json);
       case 'reaction': return ReactionEvent.fromJson(json);
       case 'heartbeat': return HeartbeatEvent.fromJson(json);
       // TODO add many more event types
@@ -733,6 +735,24 @@ class UserTopicEvent extends Event {
   Map<String, dynamic> toJson() => _$UserTopicEventToJson(this);
 }
 
+/// A Zulip event of type `muted_users`: https://zulip.com/api/get-events#muted_users
+@JsonSerializable(fieldRename: FieldRename.snake)
+class MutedUsersEvent extends Event {
+  @override
+  @JsonKey(includeToJson: true)
+  String get type => 'muted_users';
+
+  final List<MutedUserItem> mutedUsers;
+
+  MutedUsersEvent({required super.id, required this.mutedUsers});
+
+  factory MutedUsersEvent.fromJson(Map<String, dynamic> json) =>
+    _$MutedUsersEventFromJson(json);
+
+  @override
+  Map<String, dynamic> toJson() => _$MutedUsersEventToJson(this);
+}
+
 /// A Zulip event of type `message`: https://zulip.com/api/get-events#message
 @JsonSerializable(fieldRename: FieldRename.snake)
 class MessageEvent extends Event {
@@ -743,11 +763,6 @@ class MessageEvent extends Event {
   // In the server API, the `flags` field appears directly on the event rather
   // than on the message object.  To avoid proliferating message types, we
   // normalize that away in deserialization.
-  //
-  // The other difference in the server API between message objects in these
-  // events and in the get-messages results is that `matchContent` and
-  // `matchTopic` are absent here.  Already [Message.matchContent] and
-  // [Message.matchTopic] are optional, so no action is needed on that.
   @JsonKey(readValue: _readMessageValue, fromJson: Message.fromJson, includeToJson: false)
   final Message message;
 
@@ -1174,6 +1189,69 @@ enum TypingOp {
   stop;
 
   String toJson() => _$TypingOpEnumMap[this]!;
+}
+
+/// A Zulip event of type `presence`.
+///
+/// See:
+///   https://zulip.com/api/get-events#presence
+@JsonSerializable(fieldRename: FieldRename.snake)
+class PresenceEvent extends Event {
+  @override
+  @JsonKey(includeToJson: true)
+  String get type => 'presence';
+
+  final int userId;
+  // final String email; // deprecated; ignore
+  final int serverTimestamp;
+  final Map<String, PerClientPresence> presence;
+
+  PresenceEvent({
+    required super.id,
+    required this.userId,
+    required this.serverTimestamp,
+    required this.presence,
+  });
+
+  factory PresenceEvent.fromJson(Map<String, dynamic> json) =>
+    _$PresenceEventFromJson(json);
+
+  @override
+  Map<String, dynamic> toJson() => _$PresenceEventToJson(this);
+}
+
+/// A value in [PresenceEvent.presence].
+///
+/// The "per client" name follows the event's structure,
+/// but that structure is already an API wart; see the doc's "Changes" note
+/// on [client] and on the `client_name` key of the map that holds these values:
+///
+/// https://zulip.com/api/get-events#presence
+/// > Starting with Zulip 7.0 (feature level 178), this will always be "website"
+/// > as the server no longer stores which client submitted presence updates.
+///
+/// This will probably be deprecated in favor of a form like [PerUserPresence].
+/// See #1611 and discussion:
+///   https://chat.zulip.org/#narrow/channel/378-api-design/topic/presence.20rewrite/near/2200812
+// TODO(#1611) update comment about #1611
+@JsonSerializable(fieldRename: FieldRename.snake)
+class PerClientPresence {
+  final String client; // always "website" (on 7.0+, so on all supported servers)
+  final PresenceStatus status;
+  final int timestamp;
+  final bool pushable; // always false (on 7.0+, so on all supported servers)
+
+  PerClientPresence({
+    required this.client,
+    required this.status,
+    required this.timestamp,
+    required this.pushable,
+  });
+
+  factory PerClientPresence.fromJson(Map<String, dynamic> json) =>
+    _$PerClientPresenceFromJson(json);
+
+  Map<String, dynamic> toJson() => _$PerClientPresenceToJson(this);
 }
 
 /// A Zulip event of type `reaction`, with op `add` or `remove`.

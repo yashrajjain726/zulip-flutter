@@ -110,6 +110,25 @@ class CustomProfileFieldExternalAccountData {
   Map<String, dynamic> toJson() => _$CustomProfileFieldExternalAccountDataToJson(this);
 }
 
+/// An item in the [InitialSnapshot.mutedUsers] or [MutedUsersEvent].
+///
+/// For docs, search for "muted_users:"
+/// in <https://zulip.com/api/register-queue>.
+@JsonSerializable(fieldRename: FieldRename.snake)
+class MutedUserItem {
+  final int id;
+
+  // Mobile doesn't use the timestamp; ignore.
+  // final int timestamp;
+
+  const MutedUserItem({required this.id});
+
+  factory MutedUserItem.fromJson(Map<String, dynamic> json) =>
+    _$MutedUserItemFromJson(json);
+
+  Map<String, dynamic> toJson() => _$MutedUserItemToJson(this);
+}
+
 /// An item in [InitialSnapshot.realmEmoji] or [RealmEmojiUpdateEvent].
 ///
 /// For docs, search for "realm_emoji:"
@@ -309,6 +328,35 @@ enum UserRole{
     // Roles with more privilege have lower [apiValue].
     return apiValue! <= threshold.apiValue!;
   }
+}
+
+/// A value in [InitialSnapshot.presences].
+///
+/// For docs, search for "presences:"
+/// in <https://zulip.com/api/register-queue>.
+@JsonSerializable(fieldRename: FieldRename.snake)
+class PerUserPresence {
+  final int activeTimestamp;
+  final int idleTimestamp;
+
+  PerUserPresence({
+    required this.activeTimestamp,
+    required this.idleTimestamp,
+  });
+
+  factory PerUserPresence.fromJson(Map<String, dynamic> json) =>
+    _$PerUserPresenceFromJson(json);
+
+  Map<String, dynamic> toJson() => _$PerUserPresenceToJson(this);
+}
+
+/// As in [PerClientPresence.status] and [updatePresence].
+@JsonEnum(fieldRename: FieldRename.snake, alwaysCreate: true)
+enum PresenceStatus {
+  active,
+  idle;
+
+  String toJson() => _$PresenceStatusEnumMap[this]!;
 }
 
 /// An item in `saved_snippets` from the initial snapshot.
@@ -817,9 +865,8 @@ sealed class Message<T extends Conversation> extends MessageBase<T> {
   // final string type; // handled by runtime type of object
   @JsonKey(fromJson: _flagsFromJson)
   List<MessageFlag> flags; // Unrecognized flags won't roundtrip through {to,from}Json.
-  final String? matchContent;
-  @JsonKey(name: 'match_subject')
-  final String? matchTopic;
+  // TODO(#1663) Add matchContent and matchTopic back again;
+  //   revert the commit that removed these and related test/comment changes.
 
   static MessageEditState _messageEditStateFromJson(Object? json) {
     // This is a no-op so that [MessageEditState._readFromMessage]
@@ -864,8 +911,6 @@ sealed class Message<T extends Conversation> extends MessageBase<T> {
     required this.senderRealmStr,
     required super.timestamp,
     required this.flags,
-    required this.matchContent,
-    required this.matchTopic,
   });
 
   // TODO(dart): This has to be a static method, because factories/constructors
@@ -949,8 +994,6 @@ class StreamMessage extends Message<StreamConversation> {
     required super.senderRealmStr,
     required super.timestamp,
     required super.flags,
-    required super.matchContent,
-    required super.matchTopic,
     required this.conversation,
   });
 
@@ -1011,8 +1054,6 @@ class DmMessage extends Message<DmConversation> {
     required super.senderRealmStr,
     required super.timestamp,
     required super.flags,
-    required super.matchContent,
-    required super.matchTopic,
     required this.conversation,
   });
 

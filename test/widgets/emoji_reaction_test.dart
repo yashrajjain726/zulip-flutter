@@ -36,6 +36,7 @@ import 'text_test.dart';
 
 void main() {
   TestZulipBinding.ensureInitialized();
+  MessageListPage.debugEnableMarkReadOnScroll = false;
 
   late PerAccountStore store;
   late FakeApiConnection connection;
@@ -227,6 +228,27 @@ void main() {
         }
       }
     }
+
+    testWidgets('show "Muted user" label for muted reactors', (tester) async {
+      final user1 = eg.user(userId: 1, fullName: 'User 1');
+      final user2 = eg.user(userId: 2, fullName: 'User 2');
+
+      await prepare();
+      await store.addUsers([user1, user2]);
+      await store.setMutedUsers([user1.userId]);
+      await setupChipsInBox(tester,
+        reactions: [
+          Reaction.fromJson({'emoji_name': '+1', 'emoji_code': '1f44d', 'reaction_type': 'unicode_emoji', 'user_id': user1.userId}),
+          Reaction.fromJson({'emoji_name': '+1', 'emoji_code': '1f44d', 'reaction_type': 'unicode_emoji', 'user_id': user2.userId}),
+        ]);
+
+      final reactionChipFinder = find.byType(ReactionChip);
+      check(reactionChipFinder).findsOne();
+      check(find.descendant(
+        of: reactionChipFinder,
+        matching: find.text('Muted user, User 2')
+      )).findsOne();
+    });
   });
 
   testWidgets('Smoke test for light/dark/lerped', (tester) async {
@@ -308,7 +330,8 @@ void main() {
       required Narrow narrow,
     }) async {
       addTearDown(testBinding.reset);
-      assert(narrow.containsMessage(message));
+      // TODO(#1667) will be null in a search narrow; remove `!`.
+      assert(narrow.containsMessage(message)!);
 
       final httpClient = FakeImageHttpClient();
       debugNetworkImageHttpClientProvider = () => httpClient;

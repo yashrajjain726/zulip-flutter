@@ -26,6 +26,7 @@ import 'emoji.dart';
 import 'localizations.dart';
 import 'message.dart';
 import 'message_list.dart';
+import 'presence.dart';
 import 'recent_dm_conversations.dart';
 import 'recent_senders.dart';
 import 'channel.dart';
@@ -474,9 +475,12 @@ class PerAccountStore extends PerAccountStoreBase with ChangeNotifier, EmojiStor
     final channels = ChannelStoreImpl(initialSnapshot: initialSnapshot);
     return PerAccountStore._(
       core: core,
+      serverPresencePingIntervalSeconds: initialSnapshot.serverPresencePingIntervalSeconds,
+      serverPresenceOfflineThresholdSeconds: initialSnapshot.serverPresenceOfflineThresholdSeconds,
       realmWildcardMentionPolicy: initialSnapshot.realmWildcardMentionPolicy,
       realmMandatoryTopics: initialSnapshot.realmMandatoryTopics,
       realmWaitingPeriodThreshold: initialSnapshot.realmWaitingPeriodThreshold,
+      realmPresenceDisabled: initialSnapshot.realmPresenceDisabled,
       maxFileUploadSizeMib: initialSnapshot.maxFileUploadSizeMib,
       realmEmptyTopicDisplayName: initialSnapshot.realmEmptyTopicDisplayName,
       realmAllowMessageEditing: initialSnapshot.realmAllowMessageEditing,
@@ -498,8 +502,12 @@ class PerAccountStore extends PerAccountStoreBase with ChangeNotifier, EmojiStor
       ),
       users: UserStoreImpl(core: core, initialSnapshot: initialSnapshot),
       typingStatus: TypingStatus(core: core,
-        typingStartedExpiryPeriod: Duration(milliseconds: initialSnapshot.serverTypingStartedExpiryPeriodMilliseconds),
-      ),
+        typingStartedExpiryPeriod: Duration(milliseconds: initialSnapshot.serverTypingStartedExpiryPeriodMilliseconds)),
+      presence: Presence(core: core,
+        serverPresencePingInterval: Duration(seconds: initialSnapshot.serverPresencePingIntervalSeconds),
+        serverPresenceOfflineThresholdSeconds: initialSnapshot.serverPresenceOfflineThresholdSeconds,
+        realmPresenceDisabled: initialSnapshot.realmPresenceDisabled,
+        initial: initialSnapshot.presences),
       channels: channels,
       messages: MessageStoreImpl(core: core,
         realmEmptyTopicDisplayName: initialSnapshot.realmEmptyTopicDisplayName),
@@ -516,9 +524,12 @@ class PerAccountStore extends PerAccountStoreBase with ChangeNotifier, EmojiStor
 
   PerAccountStore._({
     required super.core,
+    required this.serverPresencePingIntervalSeconds,
+    required this.serverPresenceOfflineThresholdSeconds,
     required this.realmWildcardMentionPolicy,
     required this.realmMandatoryTopics,
     required this.realmWaitingPeriodThreshold,
+    required this.realmPresenceDisabled,
     required this.maxFileUploadSizeMib,
     required String? realmEmptyTopicDisplayName,
     required this.realmAllowMessageEditing,
@@ -532,6 +543,7 @@ class PerAccountStore extends PerAccountStoreBase with ChangeNotifier, EmojiStor
     required this.typingNotifier,
     required UserStoreImpl users,
     required this.typingStatus,
+    required this.presence,
     required ChannelStoreImpl channels,
     required MessageStoreImpl messages,
     required this.unreads,
@@ -570,12 +582,16 @@ class PerAccountStore extends PerAccountStoreBase with ChangeNotifier, EmojiStor
   ////////////////////////////////
   // Data attached to the realm or the server.
 
+  final int serverPresencePingIntervalSeconds;
+  final int serverPresenceOfflineThresholdSeconds;
+
   final RealmWildcardMentionPolicy realmWildcardMentionPolicy; // TODO(#668): update this realm setting
   final bool realmMandatoryTopics;  // TODO(#668): update this realm setting
   /// For docs, please see [InitialSnapshot.realmWaitingPeriodThreshold].
   final int realmWaitingPeriodThreshold;  // TODO(#668): update this realm setting
   final bool realmAllowMessageEditing; // TODO(#668): update this realm setting
   final int? realmMessageContentEditLimitSeconds; // TODO(#668): update this realm setting
+  final bool realmPresenceDisabled; // TODO(#668): update this realm setting
   final int maxFileUploadSizeMib; // No event for this.
 
   /// The display name to use for empty topics.
@@ -645,9 +661,15 @@ class PerAccountStore extends PerAccountStoreBase with ChangeNotifier, EmojiStor
   @override
   Iterable<User> get allUsers => _users.allUsers;
 
+  @override
+  bool isUserMuted(int userId, {MutedUsersEvent? event}) =>
+    _users.isUserMuted(userId, event: event);
+
   final UserStoreImpl _users;
 
   final TypingStatus typingStatus;
+
+  final Presence presence;
 
   /// Whether [user] has passed the realm's waiting period to be a full member.
   ///
@@ -671,10 +693,13 @@ class PerAccountStore extends PerAccountStoreBase with ChangeNotifier, EmojiStor
     return byDate.difference(dateJoined).inDays >= realmWaitingPeriodThreshold;
   }
 
-  /// The given user's real email address, if known, for displaying in the UI.
+  /// The user's real email address, if known, for displaying in the UI.
   ///
-  /// Returns null if self-user isn't able to see [user]'s real email address.
-  String? userDisplayEmail(User user) {
+  /// Returns null if self-user isn't able to see the user's real email address,
+  /// or if the user isn't actually a user we know about.
+  String? userDisplayEmail(int userId) {
+    final user = getUser(userId);
+    if (user == null) return null;
     if (zulipFeatureLevel >= 163) { // TODO(server-7)
       // A non-null value means self-user has access to [user]'s real email,
       // while a null value means it doesn't have access to the email.
@@ -753,6 +778,9 @@ class PerAccountStore extends PerAccountStoreBase with ChangeNotifier, EmojiStor
   @override
   void unregisterMessageList(MessageListView view) =>
     _messages.unregisterMessageList(view);
+  @override
+  void markReadFromScroll(Iterable<int> messageIds) =>
+    _messages.markReadFromScroll(messageIds);
   @override
   Future<void> sendMessage({required MessageDestination destination, required String content}) {
     assert(!_disposed);
@@ -945,9 +973,18 @@ class PerAccountStore extends PerAccountStoreBase with ChangeNotifier, EmojiStor
         assert(debugLog("server event: typing/${event.op} ${event.messageType}"));
         typingStatus.handleTypingEvent(event);
 
+      case PresenceEvent():
+        // TODO handle
+        break;
+
       case ReactionEvent():
         assert(debugLog("server event: reaction/${event.op}"));
         _messages.handleReactionEvent(event);
+
+      case MutedUsersEvent():
+        assert(debugLog("server event: muted_users"));
+        _users.handleMutedUsersEvent(event);
+        notifyListeners();
 
       case UnexpectedEvent():
         assert(debugLog("server event: ${jsonEncode(event.toJson())}")); // TODO log better
@@ -1066,7 +1103,7 @@ class LiveGlobalStore extends GlobalStore {
     // What directory should we use?
     //   path_provider's getApplicationSupportDirectory:
     //     on Android, -> Flutter's PathUtils.getFilesDir -> https://developer.android.com/reference/android/content/Context#getFilesDir()
-    //       -> empirically /data/data/com.zulip.flutter/files/
+    //       -> empirically /data/data/com.zulipmobile/files/
     //     on iOS, -> "Library/Application Support" via https://developer.apple.com/documentation/foundation/nssearchpathdirectory/nsapplicationsupportdirectory
     //     on Linux, -> "${XDG_DATA_HOME:-~/.local/share}/com.zulip.flutter/"
     //     All seem reasonable.
@@ -1202,6 +1239,7 @@ class UpdateMachine {
     // TODO do registerNotificationToken before registerQueue:
     //   https://github.com/zulip/zulip-flutter/pull/325#discussion_r1365982807
     unawaited(updateMachine.registerNotificationToken());
+    store.presence.start();
     return updateMachine;
   }
 
