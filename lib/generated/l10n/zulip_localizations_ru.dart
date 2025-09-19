@@ -68,14 +68,14 @@ class ZulipLocalizationsRu extends ZulipLocalizations {
   String get chooseAccountButtonAddAnAccount => 'Добавить учетную запись';
 
   @override
-  String get navButtonAllChannels => 'All channels';
+  String get navButtonAllChannels => 'Все каналы';
 
   @override
-  String get allChannelsPageTitle => 'All channels';
+  String get allChannelsPageTitle => 'Все каналы';
 
   @override
   String get allChannelsEmptyPlaceholder =>
-      'There are no channels you can view in this organization.';
+      'В этой организации нет доступных вам для просмотра каналов.';
 
   @override
   String get profileButtonSendDirectMessage => 'Отправить личное сообщение';
@@ -115,7 +115,7 @@ class ZulipLocalizationsRu extends ZulipLocalizations {
   String get actionSheetOptionListOfTopics => 'Список тем';
 
   @override
-  String get actionSheetOptionChannelFeed => 'Channel feed';
+  String get actionSheetOptionChannelFeed => 'Лента канала';
 
   @override
   String get actionSheetOptionUnsubscribe => 'Отписаться';
@@ -869,7 +869,7 @@ class ZulipLocalizationsRu extends ZulipLocalizations {
   String get statusTextHint => 'Ваш статус';
 
   @override
-  String get userStatusBusy => 'Занят/а';
+  String get userStatusBusy => 'В делах';
 
   @override
   String get userStatusInAMeeting => 'На встрече';
@@ -939,7 +939,7 @@ class ZulipLocalizationsRu extends ZulipLocalizations {
   String channelsEmptyPlaceholderWithAllChannelsLink(
     String allChannelsPageTitle,
   ) {
-    return 'You’re not subscribed to any channels yet. Try going to <z-link>$allChannelsPageTitle</z-link> and joining some of them.';
+    return 'Вы ещё не подписаны ни на один канал. Можете посмотреть <z-link>$allChannelsPageTitle</z-link> и подписаться на какие-то из них.';
   }
 
   @override

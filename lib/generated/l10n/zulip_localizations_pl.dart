@@ -68,14 +68,14 @@ class ZulipLocalizationsPl extends ZulipLocalizations {
   String get chooseAccountButtonAddAnAccount => 'Dodaj konto';
 
   @override
-  String get navButtonAllChannels => 'All channels';
+  String get navButtonAllChannels => 'Wszystkie kanały';
 
   @override
-  String get allChannelsPageTitle => 'All channels';
+  String get allChannelsPageTitle => 'Wszystkie kanały';
 
   @override
   String get allChannelsEmptyPlaceholder =>
-      'There are no channels you can view in this organization.';
+      'Brak kanałów, które możesz przeglądać w tej organizacji.';
 
   @override
   String get profileButtonSendDirectMessage => 'Wyślij wiadomość bezpośrednią';
@@ -115,7 +115,7 @@ class ZulipLocalizationsPl extends ZulipLocalizations {
   String get actionSheetOptionListOfTopics => 'Lista wątków';
 
   @override
-  String get actionSheetOptionChannelFeed => 'Channel feed';
+  String get actionSheetOptionChannelFeed => 'Strumień kanału';
 
   @override
   String get actionSheetOptionUnsubscribe => 'Odsubskrybuj';
@@ -928,7 +928,7 @@ class ZulipLocalizationsPl extends ZulipLocalizations {
   String channelsEmptyPlaceholderWithAllChannelsLink(
     String allChannelsPageTitle,
   ) {
-    return 'You’re not subscribed to any channels yet. Try going to <z-link>$allChannelsPageTitle</z-link> and joining some of them.';
+    return 'Nie śledzisz żadnego z kanałów. Sprawdź dostępne <z-link>$allChannelsPageTitle</z-link> i dołącz do części z nich.';
   }
 
   @override
