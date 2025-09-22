@@ -104,6 +104,12 @@
   "@actionSheetReadReceiptsZeroReadCount": {
     "description": "Label in the \"Read receipts\" bottom sheet when no one has read the message."
   },
+  "@allChannelsEmptyPlaceholder": {
+    "description": "Centered text on the 'All channels' page saying that there is no content to show."
+  },
+  "@allChannelsPageTitle": {
+    "description": "Title for the 'All channels' page."
+  },
   "@appVersionUnknownPlaceholder": {
     "description": "Placeholder to show in place of the app version when it is unknown."
   },
@@ -112,6 +118,15 @@
   },
   "@channelsEmptyPlaceholder": {
     "description": "Centered text on the 'Channels' page saying that there is no content to show."
+  },
+  "@channelsEmptyPlaceholderWithAllChannelsLink": {
+    "description": "Centered text on the 'Channels' page saying that there is no content to show, with a link to 'All channels'.",
+    "placeholders": {
+      "allChannelsPageTitle": {
+        "example": "All channels",
+        "type": "String"
+      }
+    }
   },
   "@channelsPageTitle": {
     "description": "Title for the page with a list of subscribed channels."
@@ -738,6 +753,9 @@
   "@mutedUser": {
     "description": "Name for a muted user to display all over the app."
   },
+  "@navButtonAllChannels": {
+    "description": "Title for a nav button that opens the 'All channels' page."
+  },
   "@newDmFabButtonLabel": {
     "description": "Label for the floating action button (FAB) that opens the new DM sheet."
   },
@@ -1245,9 +1263,12 @@
   "actionSheetReadReceiptsErrorReadCount": "Не вдалося завантажити сповіщення про прочитання.",
   "actionSheetReadReceiptsReadCount": "{count, plural, =1{Це повідомлення було <z-link>прочитано</z-link> {count} особою:} other{Це повідомлення було <z-link>прочитано</z-link> {count} людьми:}}",
   "actionSheetReadReceiptsZeroReadCount": "Ніхто ще не прочитав цього повідомлення.",
+  "allChannelsEmptyPlaceholder": "У цій організації немає каналів, які ви можете переглянути.",
+  "allChannelsPageTitle": "Усі канали",
   "appVersionUnknownPlaceholder": "(…)",
   "channelFeedButtonTooltip": "Стрічка каналу",
   "channelsEmptyPlaceholder": "Ви ще не підписані на жодний канал.",
+  "channelsEmptyPlaceholderWithAllChannelsLink": "Ви ще не підписані на жодний канал. Спробуйте перейти за посиланням <z-link>{allChannelsPageTitle}</z-link> та приєднатися до деяких із них.",
   "channelsPageTitle": "Канали",
   "chooseAccountButtonAddAnAccount": "Додати обліковий запис",
   "chooseAccountPageLogOutButton": "Вийти",
@@ -1395,6 +1416,7 @@
   "messageListGroupYouWithYourself": "Повідомлення з собою",
   "messageNotSentLabel": "ПОВІДОМЛЕННЯ НЕ ВІДПРАВЛЕНО",
   "mutedUser": "Заглушений користувач",
+  "navButtonAllChannels": "Усі канали",
   "newDmFabButtonLabel": "Нове особисте повідомлення",
   "newDmSheetComposeButtonLabel": "Написати",
   "newDmSheetNoUsersFound": "Користувачі не знайдені",

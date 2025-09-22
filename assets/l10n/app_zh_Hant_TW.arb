@@ -11,6 +11,9 @@
   "@aboutPageTitle": {
     "description": "Title for About Zulip page."
   },
+  "@actionSheetOptionChannelFeed": {
+    "description": "Label for navigating to a channel's channel-feed page."
+  },
   "@actionSheetOptionCopyChannelLink": {
     "description": "Label for copy channel link button on action sheet."
   },
@@ -101,6 +104,12 @@
   "@actionSheetReadReceiptsZeroReadCount": {
     "description": "Label in the \"Read receipts\" bottom sheet when no one has read the message."
   },
+  "@allChannelsEmptyPlaceholder": {
+    "description": "Centered text on the 'All channels' page saying that there is no content to show."
+  },
+  "@allChannelsPageTitle": {
+    "description": "Title for the 'All channels' page."
+  },
   "@appVersionUnknownPlaceholder": {
     "description": "Placeholder to show in place of the app version when it is unknown."
   },
@@ -109,6 +118,15 @@
   },
   "@channelsEmptyPlaceholder": {
     "description": "Centered text on the 'Channels' page saying that there is no content to show."
+  },
+  "@channelsEmptyPlaceholderWithAllChannelsLink": {
+    "description": "Centered text on the 'Channels' page saying that there is no content to show, with a link to 'All channels'.",
+    "placeholders": {
+      "allChannelsPageTitle": {
+        "example": "All channels",
+        "type": "String"
+      }
+    }
   },
   "@channelsPageTitle": {
     "description": "Title for the page with a list of subscribed channels."
@@ -735,6 +753,9 @@
   "@mutedUser": {
     "description": "Name for a muted user to display all over the app."
   },
+  "@navButtonAllChannels": {
+    "description": "Title for a nav button that opens the 'All channels' page."
+  },
   "@newDmFabButtonLabel": {
     "description": "Label for the floating action button (FAB) that opens the new DM sheet."
   },
@@ -1211,6 +1232,7 @@
   "aboutPageOpenSourceLicenses": "開源授權條款",
   "aboutPageTapToView": "點選查看",
   "aboutPageTitle": "關於 Zulip",
+  "actionSheetOptionChannelFeed": "頻道動態",
   "actionSheetOptionCopyChannelLink": "複製頻道連結",
   "actionSheetOptionCopyMessageLink": "複製訊息連結",
   "actionSheetOptionCopyMessageText": "複製訊息文字",
@@ -1239,9 +1261,12 @@
   "actionSheetReadReceiptsErrorReadCount": "載入已讀回條失敗。",
   "actionSheetReadReceiptsReadCount": "{count, plural, =1{此訊息已被<z-link>閱讀</z-link>，共有 {count} 人：} other{此訊息已被<z-link>閱讀</z-link>，共有 {count} 人：}}",
   "actionSheetReadReceiptsZeroReadCount": "尚無人閱讀此訊息。",
+  "allChannelsEmptyPlaceholder": "在此組織中沒有您可以查看的頻道。",
+  "allChannelsPageTitle": "所有頻道",
   "appVersionUnknownPlaceholder": "(…)",
   "channelFeedButtonTooltip": "頻道饋給",
   "channelsEmptyPlaceholder": "您尚未訂閱任何頻道。",
+  "channelsEmptyPlaceholderWithAllChannelsLink": "您尚未訂閱任何頻道。請前往 <z-link>{allChannelsPageTitle}</z-link> 並加入一些頻道。",
   "channelsPageTitle": "頻道",
   "chooseAccountButtonAddAnAccount": "增添帳號",
   "chooseAccountPageLogOutButton": "登出",
@@ -1389,6 +1414,7 @@
   "messageListGroupYouWithYourself": "與自己的訊息",
   "messageNotSentLabel": "訊息未送出",
   "mutedUser": "已靜音的使用者",
+  "navButtonAllChannels": "所有頻道",
   "newDmFabButtonLabel": "新增私訊",
   "newDmSheetComposeButtonLabel": "編寫",
   "newDmSheetNoUsersFound": "找不到使用者",

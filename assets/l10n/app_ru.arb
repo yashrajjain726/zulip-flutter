@@ -11,6 +11,9 @@
   "@aboutPageTitle": {
     "description": "Title for About Zulip page."
   },
+  "@actionSheetOptionChannelFeed": {
+    "description": "Label for navigating to a channel's channel-feed page."
+  },
   "@actionSheetOptionCopyChannelLink": {
     "description": "Label for copy channel link button on action sheet."
   },
@@ -101,6 +104,12 @@
   "@actionSheetReadReceiptsZeroReadCount": {
     "description": "Label in the \"Read receipts\" bottom sheet when no one has read the message."
   },
+  "@allChannelsEmptyPlaceholder": {
+    "description": "Centered text on the 'All channels' page saying that there is no content to show."
+  },
+  "@allChannelsPageTitle": {
+    "description": "Title for the 'All channels' page."
+  },
   "@appVersionUnknownPlaceholder": {
     "description": "Placeholder to show in place of the app version when it is unknown."
   },
@@ -109,6 +118,15 @@
   },
   "@channelsEmptyPlaceholder": {
     "description": "Centered text on the 'Channels' page saying that there is no content to show."
+  },
+  "@channelsEmptyPlaceholderWithAllChannelsLink": {
+    "description": "Centered text on the 'Channels' page saying that there is no content to show, with a link to 'All channels'.",
+    "placeholders": {
+      "allChannelsPageTitle": {
+        "example": "All channels",
+        "type": "String"
+      }
+    }
   },
   "@channelsPageTitle": {
     "description": "Title for the page with a list of subscribed channels."
@@ -735,6 +753,9 @@
   "@mutedUser": {
     "description": "Name for a muted user to display all over the app."
   },
+  "@navButtonAllChannels": {
+    "description": "Title for a nav button that opens the 'All channels' page."
+  },
   "@newDmFabButtonLabel": {
     "description": "Label for the floating action button (FAB) that opens the new DM sheet."
   },
@@ -1213,6 +1234,7 @@
   "aboutPageOpenSourceLicenses": "Лицензии открытого исходного кода",
   "aboutPageTapToView": "Нажмите для просмотра",
   "aboutPageTitle": "О Zulip",
+  "actionSheetOptionChannelFeed": "Лента канала",
   "actionSheetOptionCopyChannelLink": "Скопировать ссылку на канал",
   "actionSheetOptionCopyMessageLink": "Скопировать ссылку на сообщение",
   "actionSheetOptionCopyMessageText": "Скопировать текст сообщения",
@@ -1241,9 +1263,12 @@
   "actionSheetReadReceiptsErrorReadCount": "Не удалось загрузить подтверждения прочтения.",
   "actionSheetReadReceiptsReadCount": "{count, plural, one{Это сообщение было <z-link>прочитано</z-link> {count} пользователем:} other{Это сообщение было <z-link>прочитано</z-link> {count} пользователями:}}",
   "actionSheetReadReceiptsZeroReadCount": "Это сообщение еще никто не прочитал.",
+  "allChannelsEmptyPlaceholder": "В этой организации нет доступных вам для просмотра каналов.",
+  "allChannelsPageTitle": "Все каналы",
   "appVersionUnknownPlaceholder": "(…)",
   "channelFeedButtonTooltip": "Лента канала",
   "channelsEmptyPlaceholder": "Вы ещё не подписаны ни на один канал.",
+  "channelsEmptyPlaceholderWithAllChannelsLink": "Вы ещё не подписаны ни на один канал. Можете посмотреть <z-link>{allChannelsPageTitle}</z-link> и подписаться на какие-то из них.",
   "channelsPageTitle": "Каналы",
   "chooseAccountButtonAddAnAccount": "Добавить учетную запись",
   "chooseAccountPageLogOutButton": "Выход из системы",
@@ -1391,6 +1416,7 @@
   "messageListGroupYouWithYourself": "Сообщения с собой",
   "messageNotSentLabel": "СООБЩЕНИЕ НЕ ОТПРАВЛЕНО",
   "mutedUser": "Заглушенный пользователь",
+  "navButtonAllChannels": "Все каналы",
   "newDmFabButtonLabel": "Новое ЛС",
   "newDmSheetComposeButtonLabel": "Написать",
   "newDmSheetNoUsersFound": "Никто не найден",
@@ -1494,7 +1520,7 @@
   "userRoleOwner": "Владелец",
   "userRoleUnknown": "Неизвестно",
   "userStatusAtTheOffice": "В офисе",
-  "userStatusBusy": "Занят/а",
+  "userStatusBusy": "В делах",
   "userStatusCommuting": "В дороге",
   "userStatusInAMeeting": "На встрече",
   "userStatusOutSick": "Болею",
