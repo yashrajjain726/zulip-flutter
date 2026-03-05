@@ -70,7 +70,7 @@ mixin RealmStore on PerAccountStoreBase, UserGroupStore {
   // Realm settings previously found in realm/update_dict events,
   // but now deprecated.
 
-  RealmWildcardMentionPolicy get realmWildcardMentionPolicy; // TODO(#662): replaced by can_mention_many_users_group
+  RealmWildcardMentionPolicy get realmWildcardMentionPolicy; // TODO(server-10) remove
   RealmDeleteOwnMessagePolicy? get realmDeleteOwnMessagePolicy; // TODO(server-10) remove
 
   //|//////////////////////////////
