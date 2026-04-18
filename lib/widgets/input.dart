@@ -143,6 +143,21 @@ class PopupMenuList extends StatelessWidget {
       side: BorderSide(color: designVariables.contextMenuBorder));
   }
 
+  /// A [ButtonStyle] for menu entries.
+  // TODO share this code with autocomplete too, not only report-message?
+  static ButtonStyle entryStyleAsButtonStyle(bool selected, {required DesignVariables designVariables}) {
+    return ButtonStyle(
+      padding: WidgetStatePropertyAll(EdgeInsetsDirectional.fromSTEB(4, 4, 8, 4)),
+      shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5))),
+      side: selected
+        // TODO should `selected` be handled as a [WidgetState]?
+        ? WidgetStatePropertyAll(BorderSide(color: designVariables.borderMenuButtonSelected))
+        : null,
+      overlayColor: WidgetStatePropertyAll(designVariables.editorButtonPressedBg),
+      splashFactory: NoSplash.splashFactory,
+    );
+  }
+
   static const _elevation = 4.0; // TODO tune the shadow effect
 
   @override
