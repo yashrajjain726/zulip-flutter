@@ -77,8 +77,12 @@ class ZulipWebUiKitButton extends StatelessWidget {
         });
       case (ZulipWebUiKitButtonAttention.high, ZulipWebUiKitButtonIntent.danger):
       case (ZulipWebUiKitButtonAttention.minimal, ZulipWebUiKitButtonIntent.info):
-      case (ZulipWebUiKitButtonAttention.low, ZulipWebUiKitButtonIntent.info):
         throw UnimplementedError();
+      case (ZulipWebUiKitButtonAttention.low, ZulipWebUiKitButtonIntent.info):
+        return WidgetStateColor.fromMap({
+          WidgetState.pressed: designVariables.btnBgAttLowIntInfoActive,
+          ~WidgetState.pressed: designVariables.btnBgAttLowIntInfoActive.withAlpha(0),
+        });
       case (ZulipWebUiKitButtonAttention.medium, ZulipWebUiKitButtonIntent.info):
         result = WidgetStateColor.fromMap({
           WidgetState.pressed: designVariables.btnBgAttMediumIntInfoActive,
@@ -122,8 +126,9 @@ class ZulipWebUiKitButton extends StatelessWidget {
         result = designVariables.btnLabelAttMediumIntDanger;
       case (ZulipWebUiKitButtonAttention.high, ZulipWebUiKitButtonIntent.danger):
       case (ZulipWebUiKitButtonAttention.minimal, ZulipWebUiKitButtonIntent.info):
-      case (ZulipWebUiKitButtonAttention.low, ZulipWebUiKitButtonIntent.info):
         throw UnimplementedError();
+      case (ZulipWebUiKitButtonAttention.low, ZulipWebUiKitButtonIntent.info):
+        result = designVariables.btnLabelAttLowIntInfo;
       case (ZulipWebUiKitButtonAttention.medium, ZulipWebUiKitButtonIntent.info):
         result = designVariables.btnLabelAttMediumIntInfo;
       case (ZulipWebUiKitButtonAttention.high, ZulipWebUiKitButtonIntent.info):
