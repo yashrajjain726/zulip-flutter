@@ -353,10 +353,6 @@
   "@reportMessageDescriptionLabel": {
     "description": "Label text for the description field in the report message dialog."
   },
-  "reportMessageReasonRequired": "Please select a reason.",
-  "@reportMessageReasonRequired": {
-    "description": "Validation error shown in the report message dialog when no report type is selected."
-  },
   "reportMessageDescriptionRequired": "Please provide details.",
   "@reportMessageDescriptionRequired": {
     "description": "Validation error shown in the report message dialog when the report type is \"Other\" and no description is provided."

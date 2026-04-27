@@ -654,12 +654,6 @@ abstract class ZulipLocalizations {
   /// **'Can you provide more details?'**
   String get reportMessageDescriptionLabel;
 
-  /// Validation error shown in the report message dialog when no report type is selected.
-  ///
-  /// In en, this message translates to:
-  /// **'Please select a reason.'**
-  String get reportMessageReasonRequired;
-
   /// Validation error shown in the report message dialog when the report type is "Other" and no description is provided.
   ///
   /// In en, this message translates to:

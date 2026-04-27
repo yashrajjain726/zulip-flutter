@@ -43,6 +43,10 @@ void main() {
             ReportMessageType(key: 'spam', name: 'Correo no deseado'),
             ReportMessageType(key: 'other', name: 'Otro'),
           ],
+          .harassmentFirst => [
+            ReportMessageType(key: 'harassment', name: 'Harassment'),
+            ReportMessageType(key: 'spam', name: 'Spam'),
+          ],
           .legacy => null,
         },
       ));
@@ -156,22 +160,22 @@ void main() {
       });
     });
 
-    testWidgets('submit with no type selected shows error on dropdown', (tester) async {
-      final message = eg.streamMessage(flags: []);
-      await showFromMessageList(tester, message: message);
+    group('initial selection', () {
+      testWidgets('first server-provided type', (tester) async {
+        final message = eg.streamMessage(flags: []);
+        await showFromMessageList(tester, message: message,
+          reportTypeSource: .harassmentFirst);
+        await tapSubmit(tester, prepareSuccess: true);
+        checkRequest(message, bodyFields: {'report_type': 'harassment'});
+      });
 
-      check(find.text('Please select a reason.')).findsNothing();
-
-      // Tap submit without selecting a type.
-      await tapSubmit(tester);
-      check(find.text('Please select a reason.')).findsOne();
-
-      // Select a type; error clears, and submit succeeds.
-      await selectType(tester, 'Spam');
-      await tester.pump();
-      check(find.text('Please select a reason.')).findsNothing();
-      await tapSubmit(tester, prepareSuccess: true);
-      checkRequest(message, bodyFields: {'report_type': 'spam'});
+      testWidgets('legacy: spam', (tester) async {
+        final message = eg.streamMessage(flags: []);
+        await showFromMessageList(tester, message: message,
+          reportTypeSource: .legacy);
+        await tapSubmit(tester, prepareSuccess: true);
+        checkRequest(message, bodyFields: {'report_type': 'spam'});
+      });
     });
 
     testWidgets('"Other" type with no description shows error on text field', (tester) async {
@@ -240,6 +244,9 @@ enum _ReportTypeSource {
 
   /// Server-provided report types with Spanish names.
   spanish,
+
+  /// Server-provided report types whose first entry is not 'spam'.
+  harassmentFirst,
 
   /// No server-provided report types; uses [LegacyReportMessageType].
   legacy,

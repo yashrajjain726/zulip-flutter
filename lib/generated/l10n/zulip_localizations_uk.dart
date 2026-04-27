@@ -308,9 +308,6 @@ class ZulipLocalizationsUk extends ZulipLocalizations {
   String get reportMessageDescriptionLabel => 'Can you provide more details?';
 
   @override
-  String get reportMessageReasonRequired => 'Please select a reason.';
-
-  @override
   String get reportMessageDescriptionRequired => 'Please provide details.';
 
   @override

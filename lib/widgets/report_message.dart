@@ -47,6 +47,16 @@ class _ReportMessageDialogState extends State<ReportMessageDialog> {
   bool _requestInProgress = false;
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_selectedType == null) {
+      final store = PerAccountStoreWidget.of(context);
+      _selectedType = store.serverReportMessageTypes?.firstOrNull?.key
+        ?? LegacyReportMessageType.spam.toJson();
+    }
+  }
+
+  @override
   void dispose() {
     _descriptionController.dispose();
     super.dispose();
@@ -167,12 +177,6 @@ class _ReportTypeDropdown extends StatelessWidget {
       selectOnly: true,
       initialSelection: selectedType,
       enabled: !requestInProgress,
-      validator: (value) {
-        if (value == null) {
-          return zulipLocalizations.reportMessageReasonRequired;
-        }
-        return null;
-      },
 
       menuStyle: PopupMenuList.styleAsMenuStyle(designVariables),
       decorationBuilder: (_, menuController) =>
